@@ -1,8 +1,6 @@
 import { useEffect } from "react";
 import { FolderOpen, Play } from "lucide-react";
-import { Navigate } from "react-router-dom";
 
-import { useAppStore } from "@/stores/app-store";
 import { useDownloadStore } from "@/stores/download-store";
 
 function statusLabel(status: string) {
@@ -19,17 +17,12 @@ function statusLabel(status: string) {
 }
 
 export default function DownloadsPage() {
-  const session = useAppStore((state) => state.session);
   const tasks = useDownloadStore((state) => state.tasks);
   const refreshTasks = useDownloadStore((state) => state.refreshTasks);
   const openDownloadFolder = useDownloadStore((state) => state.openDownloadFolder);
   const openPlayer = useDownloadStore((state) => state.openPlayer);
 
   useEffect(() => {
-    if (!session) {
-      return;
-    }
-
     void refreshTasks();
     const timer = window.setInterval(() => {
       void refreshTasks();
@@ -38,11 +31,7 @@ export default function DownloadsPage() {
     return () => {
       window.clearInterval(timer);
     };
-  }, [refreshTasks, session]);
-
-  if (!session) {
-    return <Navigate to="/login" replace />;
-  }
+  }, [refreshTasks]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">

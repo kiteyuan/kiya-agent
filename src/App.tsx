@@ -4,7 +4,6 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppShell } from "@/components/app-shell";
 import ChatPage from "@/pages/Chat";
 import DownloadsPage from "@/pages/Downloads";
-import LoginPage from "@/pages/Login";
 import PlaylistPage from "@/pages/Playlist";
 import SettingsPage from "@/pages/Settings";
 import { useAppStore } from "@/stores/app-store";
@@ -24,8 +23,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="/login" element={<LoginPage />} />
+        <Route path="/" element={<Navigate to="/app/chat" replace />} />
         <Route path="/app" element={<AppShell />}>
           <Route path="chat" element={<ChatPage />} />
           <Route path="downloads" element={<DownloadsPage />} />

@@ -1,6 +1,5 @@
 import {
   Bot,
-  CircleUserRound,
   Download,
   ListVideo,
   MessageSquareText,
@@ -57,7 +56,6 @@ const pageMeta = {
 
 export function AppShell() {
   const status = useAppStore((state) => state.status);
-  const session = useAppStore((state) => state.session);
   const location = useLocation();
   const currentMeta =
     pageMeta[location.pathname as keyof typeof pageMeta] ?? pageMeta["/app/chat"];
@@ -124,21 +122,7 @@ export function AppShell() {
               <div className="flex flex-wrap gap-2">
                 <StatusPill label="aria2" state={status.aria2} />
                 <StatusPill label="local mcp" state={status.localMcp} />
-                <StatusPill label="auth" state={status.oauthCallback} />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 rounded-3xl bg-black/[0.03] p-4 dark:bg-white/[0.03]">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-zinc-950/8 text-zinc-600 dark:bg-zinc-100/8 dark:text-zinc-300">
-                <CircleUserRound className="h-5 w-5" />
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-sm text-zinc-900 dark:text-zinc-100">
-                  {session?.user.name ?? "未登录"}
-                </p>
-                <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-                  {session ? "桌面会话已连接" : "需要完成登录"}
-                </p>
+                <StatusPill label="pi config" state={status.piAgentConfig} />
               </div>
             </div>
           </div>
@@ -158,7 +142,7 @@ export function AppShell() {
             <div className="hidden flex-wrap justify-end gap-3 xl:flex">
               <StatusPill label="aria2" state={status.aria2} />
               <StatusPill label="local mcp" state={status.localMcp} />
-              <StatusPill label="auth callback" state={status.oauthCallback} />
+              <StatusPill label="pi config" state={status.piAgentConfig} />
             </div>
           </header>
 

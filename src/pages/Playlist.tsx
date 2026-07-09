@@ -1,22 +1,15 @@
 import { ListVideo, Play } from "lucide-react";
 import { useMemo } from "react";
-import { Navigate } from "react-router-dom";
 
-import { useAppStore } from "@/stores/app-store";
 import { usePlaylistStore } from "@/stores/playlist-store";
 
 export default function PlaylistPage() {
-  const session = useAppStore((state) => state.session);
   const allItems = usePlaylistStore((state) => state.items);
   const openItem = usePlaylistStore((state) => state.openItem);
   const items = useMemo(
     () => allItems.filter((item) => item.kind === "remote-url"),
     [allItems],
   );
-
-  if (!session) {
-    return <Navigate to="/login" replace />;
-  }
 
   return (
     <>

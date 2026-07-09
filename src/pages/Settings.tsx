@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Navigate } from "react-router-dom";
 
 import { SectionBlock } from "@/components/section-block";
 import {
@@ -36,11 +35,9 @@ function parseHeaders(text: string): Record<string, string> {
 }
 
 export default function SettingsPage() {
-  const session = useAppStore((state) => state.session);
   const config = useAppStore((state) => state.config);
   const logs = useAppStore((state) => state.logs);
   const updateConfig = useAppStore((state) => state.updateConfig);
-  const logout = useAppStore((state) => state.logout);
   const openSource = usePlaylistStore((state) => state.openSource);
   const [testState, setTestState] = useState<
     Record<string, { loading: boolean; message?: string; ok?: boolean }>
@@ -62,41 +59,9 @@ export default function SettingsPage() {
     });
   };
 
-  if (!session) {
-    return <Navigate to="/login" replace />;
-  }
-
   return (
     <div className="h-full overflow-y-auto pr-2">
       <div className="space-y-12 pb-8">
-      <SectionBlock title="Account">
-        <div className="grid gap-6 md:grid-cols-2">
-          <div className="space-y-2">
-            <p className="text-xs uppercase tracking-[0.24em] text-zinc-400">
-              user
-            </p>
-            <p className="text-sm text-zinc-900 dark:text-zinc-100">
-              {session.user.name}
-            </p>
-          </div>
-          <div className="space-y-2">
-            <p className="text-xs uppercase tracking-[0.24em] text-zinc-400">
-              token
-            </p>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {session.accessToken.slice(0, 10)}...
-            </p>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => void logout()}
-          className="text-sm text-zinc-500 transition hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-100"
-        >
-          退出登录
-        </button>
-      </SectionBlock>
-
       <SectionBlock title="Downloads">
         <div className="grid gap-6 md:grid-cols-2">
           <label className="space-y-2">
@@ -136,54 +101,6 @@ export default function SettingsPage() {
               value={config.localMcpPort}
               onChange={(event) =>
                 updateConfig({ localMcpPort: Number(event.target.value) || 0 })
-              }
-              className="w-full border-b border-black/[0.08] bg-transparent pb-3 text-sm text-zinc-900 outline-none dark:border-white/10 dark:text-zinc-100"
-            />
-          </label>
-          <label className="space-y-2">
-            <span className="text-xs uppercase tracking-[0.24em] text-zinc-400">
-              casdoor base url
-            </span>
-            <input
-              value={config.casdoorBaseUrl}
-              onChange={(event) =>
-                updateConfig({ casdoorBaseUrl: event.target.value })
-              }
-              className="w-full border-b border-black/[0.08] bg-transparent pb-3 text-sm text-zinc-900 outline-none dark:border-white/10 dark:text-zinc-100"
-            />
-          </label>
-          <label className="space-y-2">
-            <span className="text-xs uppercase tracking-[0.24em] text-zinc-400">
-              casdoor client id
-            </span>
-            <input
-              value={config.casdoorClientId}
-              onChange={(event) =>
-                updateConfig({ casdoorClientId: event.target.value })
-              }
-              className="w-full border-b border-black/[0.08] bg-transparent pb-3 text-sm text-zinc-900 outline-none dark:border-white/10 dark:text-zinc-100"
-            />
-          </label>
-          <label className="space-y-2">
-            <span className="text-xs uppercase tracking-[0.24em] text-zinc-400">
-              casdoor scope
-            </span>
-            <input
-              value={config.casdoorScope}
-              onChange={(event) =>
-                updateConfig({ casdoorScope: event.target.value })
-              }
-              className="w-full border-b border-black/[0.08] bg-transparent pb-3 text-sm text-zinc-900 outline-none dark:border-white/10 dark:text-zinc-100"
-            />
-          </label>
-          <label className="space-y-2">
-            <span className="text-xs uppercase tracking-[0.24em] text-zinc-400">
-              redirect uri
-            </span>
-            <input
-              value={config.casdoorRedirectUri}
-              onChange={(event) =>
-                updateConfig({ casdoorRedirectUri: event.target.value })
               }
               className="w-full border-b border-black/[0.08] bg-transparent pb-3 text-sm text-zinc-900 outline-none dark:border-white/10 dark:text-zinc-100"
             />

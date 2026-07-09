@@ -5,7 +5,6 @@ import axios from "axios";
 
 import type {
   AppBootstrapStatus,
-  AuthSession,
   ChatMessage,
   DownloadTask,
   LocalConfig,
@@ -45,7 +44,6 @@ const embeddedRemoteMcpServers: RemoteMcpServer[] = [
 export const defaultBootstrapStatus: AppBootstrapStatus = {
   aria2: "ready",
   localMcp: "ready",
-  oauthCallback: "ready",
   piAgentConfig: "generated",
 };
 
@@ -82,10 +80,6 @@ const previewRuntimeDefaults: RuntimeDefaults = {
 export const defaultConfig: LocalConfig = {
   downloadDir: previewRuntimeDefaults.downloadDir,
   remoteMcpServers: embeddedRemoteMcpServers,
-  casdoorBaseUrl: "https://auth.kiteyuan.info",
-  casdoorClientId: "b3ed2dcbc9803ecdc3d0",
-  casdoorScope: "openid profile email offline_access",
-  casdoorRedirectUri: "http://127.0.0.1:14321/callback",
   localMcpPort: 17321,
   aria2RpcPort: 16800,
   modelProvider: "openai",
@@ -99,17 +93,6 @@ interface AppStatusPayload {
   logs: string[];
 }
 
-interface StartLoginFlowResult {
-  authUrl: string;
-  mode: "browser-opened" | "mock";
-}
-
-interface AuthPollResult {
-  status: "pending" | "success" | "error" | "idle";
-  session?: AuthSession;
-  message?: string;
-}
-
 export interface McpConnectionTestResult {
   ok: boolean;
   statusCode?: number;
@@ -118,7 +101,6 @@ export interface McpConnectionTestResult {
 
 const PI_STREAM_EVENT = "kiya://pi-stream";
 
-const SESSION_STORE_KEY = "authSession";
 const CONFIG_STORE_KEY = "localConfig";
 const store = new LazyStore("kiya-agent.store.json", {
   defaults: {},
@@ -129,16 +111,6 @@ function isTauriRuntime() {
   return isTauri();
 }
 
-async function saveSession(session: AuthSession) {
-  if (isTauriRuntime()) {
-    await store.set(SESSION_STORE_KEY, session);
-    await store.save();
-    return;
-  }
-
-  localStorage.setItem(SESSION_STORE_KEY, JSON.stringify(session));
-}
-
 export async function saveConfig(config: LocalConfig): Promise<void> {
   if (isTauriRuntime()) {
     await store.set(CONFIG_STORE_KEY, config);
@@ -147,16 +119,6 @@ export async function saveConfig(config: LocalConfig): Promise<void> {
   }
 
   localStorage.setItem(CONFIG_STORE_KEY, JSON.stringify(config));
-}
-
-export async function loadSession(): Promise<AuthSession | null> {
-  if (isTauriRuntime()) {
-    const session = await store.get<AuthSession>(SESSION_STORE_KEY);
-    return session ?? null;
-  }
-
-  const rawSession = localStorage.getItem(SESSION_STORE_KEY);
-  return rawSession ? (JSON.parse(rawSession) as AuthSession) : null;
 }
 
 export async function loadConfig(): Promise<Partial<LocalConfig> | null> {
@@ -180,16 +142,6 @@ export async function loadConfig(): Promise<Partial<LocalConfig> | null> {
     ...parsed,
     remoteMcpServers: mergeRemoteMcpServers(parsed.remoteMcpServers),
   };
-}
-
-async function clearSession() {
-  if (isTauriRuntime()) {
-    await store.delete(SESSION_STORE_KEY);
-    await store.save();
-    return;
-  }
-
-  localStorage.removeItem(SESSION_STORE_KEY);
 }
 
 export function mergeBootstrapStatus(
@@ -220,7 +172,6 @@ export async function readAppStatusDetails(): Promise<AppStatusPayload> {
     logs: [
       "[bootstrap] aria2 ready",
       "[bootstrap] local mcp ready",
-      "[bootstrap] auth callback ready",
     ],
   };
 }
@@ -231,52 +182,6 @@ export async function readRuntimeDefaults(): Promise<RuntimeDefaults> {
   }
 
   return previewRuntimeDefaults;
-}
-
-export async function startLoginFlow(config: LocalConfig): Promise<AuthSession> {
-  if (!isTauriRuntime()) {
-    const session = {
-      accessToken: "mock_access_token",
-      refreshToken: "mock_refresh_token",
-      expiresAt: Date.now() + 1000 * 60 * 60,
-      user: {
-        id: "user_kiya",
-        name: "Kiya User",
-      },
-    };
-
-    await saveSession(session);
-    return session;
-  }
-
-  await invoke<StartLoginFlowResult>("start_login_flow", {
-    baseUrl: config.casdoorBaseUrl,
-    clientId: config.casdoorClientId,
-    scope: config.casdoorScope,
-    redirectUri: config.casdoorRedirectUri,
-  });
-
-  const timeoutAt = Date.now() + 1000 * 60 * 3;
-  while (Date.now() < timeoutAt) {
-    const result = await invoke<AuthPollResult>("poll_auth_session");
-    if (result.status === "success" && result.session) {
-      await saveSession(result.session);
-      return result.session;
-    }
-
-    if (result.status === "error") {
-      throw new Error(result.message ?? "Casdoor 登录失败");
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 1200));
-  }
-
-  throw new Error("登录超时，请确认 Casdoor 回调已完成");
-}
-
-export async function logoutSession(): Promise<void> {
-  await clearSession();
-  return;
 }
 
 export async function streamPiAgent(
@@ -298,35 +203,37 @@ export async function streamPiAgent(
   const requestId = crypto.randomUUID();
   const launchConfig = buildPiLaunchConfig(config);
 
-  await new Promise<void>(async (resolve, reject) => {
-    const unlisten = await listen<PiStreamEvent>(PI_STREAM_EVENT, (event) => {
-      if (event.payload.requestId !== requestId) {
-        return;
-      }
+  await new Promise<void>((resolve, reject) => {
+    void (async () => {
+      const unlisten = await listen<PiStreamEvent>(PI_STREAM_EVENT, (event) => {
+        if (event.payload.requestId !== requestId) {
+          return;
+        }
 
-      onEvent(event.payload);
+        onEvent(event.payload);
 
-      if (event.payload.stage === "complete") {
-        void unlisten();
-        resolve();
-      }
+        if (event.payload.stage === "complete") {
+          void unlisten();
+          resolve();
+        }
 
-      if (event.payload.stage === "error") {
-        void unlisten();
-        reject(new Error(event.payload.message ?? "Pi Agent 执行失败"));
-      }
-    });
-
-    try {
-      await invoke<void>("prompt_pi_agent", {
-        requestId,
-        message,
-        config: launchConfig,
+        if (event.payload.stage === "error") {
+          void unlisten();
+          reject(new Error(event.payload.message ?? "Pi Agent 执行失败"));
+        }
       });
-    } catch (error) {
-      await unlisten();
-      reject(error);
-    }
+
+      try {
+        await invoke<void>("prompt_pi_agent", {
+          requestId,
+          message,
+          config: launchConfig,
+        });
+      } catch (error) {
+        await unlisten();
+        reject(error);
+      }
+    })().catch(reject);
   });
 }
 
@@ -486,10 +393,7 @@ export function mergeRemoteMcpServers(
       ? {
           ...server,
           enabled: saved.enabled,
-          headers:
-            hasLegacyCasdoorPlaceholder(saved.headers) || !saved.headers
-              ? {}
-              : saved.headers,
+          headers: saved.headers ?? {},
         }
       : server;
   });
@@ -500,17 +404,6 @@ export function mergeRemoteMcpServers(
 
   return [...embeddedServers, ...customServers];
 }
-
-function hasLegacyCasdoorPlaceholder(headers?: Record<string, string>) {
-  if (!headers) {
-    return false;
-  }
-
-  return Object.values(headers).some((value) =>
-    value.includes("{{casdoor_access_token}}"),
-  );
-}
-
 export function createRemoteMcpServer(
   patch?: Partial<RemoteMcpServer>,
 ): RemoteMcpServer {

@@ -3,19 +3,7 @@ export type ServiceState = "starting" | "ready" | "error";
 export interface AppBootstrapStatus {
   aria2: ServiceState;
   localMcp: ServiceState;
-  oauthCallback: ServiceState;
   piAgentConfig: "missing" | "generated" | "error";
-}
-
-export interface AuthSession {
-  accessToken: string;
-  refreshToken?: string;
-  expiresAt?: number;
-  user: {
-    id: string;
-    name: string;
-    avatar?: string;
-  };
 }
 
 export type ModelProvider =
@@ -40,10 +28,6 @@ export interface RemoteMcpServer {
 export interface LocalConfig {
   downloadDir: string;
   remoteMcpServers: RemoteMcpServer[];
-  casdoorBaseUrl: string;
-  casdoorClientId: string;
-  casdoorScope: string;
-  casdoorRedirectUri: string;
   localMcpPort: number;
   aria2RpcPort: number;
   modelProvider: ModelProvider;

@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 pub struct AppBootstrapStatus {
     pub aria2: String,
     pub local_mcp: String,
-    pub oauth_callback: String,
     pub pi_agent_config: String,
 }
 
@@ -42,62 +41,6 @@ pub struct RemoteMcpServerConfig {
     pub transport: String,
     pub url: String,
     pub headers: std::collections::HashMap<String, String>,
-}
-
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AuthUser {
-    pub id: String,
-    pub name: String,
-    pub avatar: Option<String>,
-}
-
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AuthSession {
-    pub access_token: String,
-    pub refresh_token: Option<String>,
-    pub expires_at: Option<u64>,
-    pub user: AuthUser,
-}
-
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct StartLoginFlowResult {
-    pub auth_url: String,
-    pub mode: String,
-}
-
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AuthPollResult {
-    pub status: String,
-    pub session: Option<AuthSession>,
-    pub message: Option<String>,
-}
-
-#[derive(Clone, Deserialize)]
-pub struct DiscoveryDocument {
-    pub authorization_endpoint: String,
-    pub token_endpoint: String,
-    pub userinfo_endpoint: String,
-}
-
-#[derive(Clone, Deserialize)]
-pub struct TokenResponse {
-    pub access_token: String,
-    pub refresh_token: Option<String>,
-    pub expires_in: Option<u64>,
-}
-
-#[derive(Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UserInfoResponse {
-    pub sub: Option<String>,
-    pub id: Option<String>,
-    pub display_name: Option<String>,
-    pub name: Option<String>,
-    pub avatar: Option<String>,
 }
 
 #[derive(Clone, Serialize)]

@@ -7,7 +7,6 @@ describe("mergeBootstrapStatus", () => {
     expect(mergeBootstrapStatus()).toEqual({
       aria2: "ready",
       localMcp: "ready",
-      oauthCallback: "ready",
       piAgentConfig: "generated",
     });
   });
@@ -20,7 +19,6 @@ describe("mergeBootstrapStatus", () => {
     ).toEqual({
       aria2: "error",
       localMcp: "ready",
-      oauthCallback: "ready",
       piAgentConfig: "generated",
     });
   });

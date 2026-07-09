@@ -1,21 +1,14 @@
 import { Send } from "lucide-react";
-import { Navigate } from "react-router-dom";
 
 import { MessageItem } from "@/components/message-item";
-import { useAppStore } from "@/stores/app-store";
 import { useChatStore } from "@/stores/chat-store";
 
 export default function ChatPage() {
-  const session = useAppStore((state) => state.session);
   const messages = useChatStore((state) => state.messages);
   const draft = useChatStore((state) => state.draft);
   const isSending = useChatStore((state) => state.isSending);
   const setDraft = useChatStore((state) => state.setDraft);
   const sendMessage = useChatStore((state) => state.sendMessage);
-
-  if (!session) {
-    return <Navigate to="/login" replace />;
-  }
 
   return (
     <div className="relative flex h-full min-h-0 flex-col px-3 py-3">
