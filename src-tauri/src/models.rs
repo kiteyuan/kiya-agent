@@ -1,0 +1,142 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppBootstrapStatus {
+    pub aria2: String,
+    pub local_mcp: String,
+    pub oauth_callback: String,
+    pub pi_agent_config: String,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppStatusPayload {
+    pub status: AppBootstrapStatus,
+    pub logs: Vec<String>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RuntimeDefaults {
+    pub download_dir: String,
+    pub runtime_target: String,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PiLaunchConfig {
+    pub remote_mcp_servers: Vec<RemoteMcpServerConfig>,
+    pub model_provider: String,
+    pub model_name: String,
+    pub model_api_key: String,
+    pub model_base_url: String,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteMcpServerConfig {
+    pub id: String,
+    pub name: String,
+    pub enabled: bool,
+    pub transport: String,
+    pub url: String,
+    pub headers: std::collections::HashMap<String, String>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthUser {
+    pub id: String,
+    pub name: String,
+    pub avatar: Option<String>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthSession {
+    pub access_token: String,
+    pub refresh_token: Option<String>,
+    pub expires_at: Option<u64>,
+    pub user: AuthUser,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StartLoginFlowResult {
+    pub auth_url: String,
+    pub mode: String,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuthPollResult {
+    pub status: String,
+    pub session: Option<AuthSession>,
+    pub message: Option<String>,
+}
+
+#[derive(Clone, Deserialize)]
+pub struct DiscoveryDocument {
+    pub authorization_endpoint: String,
+    pub token_endpoint: String,
+    pub userinfo_endpoint: String,
+}
+
+#[derive(Clone, Deserialize)]
+pub struct TokenResponse {
+    pub access_token: String,
+    pub refresh_token: Option<String>,
+    pub expires_in: Option<u64>,
+}
+
+#[derive(Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UserInfoResponse {
+    pub sub: Option<String>,
+    pub id: Option<String>,
+    pub display_name: Option<String>,
+    pub name: Option<String>,
+    pub avatar: Option<String>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PiToolCall {
+    pub tool: String,
+    pub detail: String,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PiStreamEvent {
+    pub request_id: String,
+    pub stage: String,
+    pub delta: Option<String>,
+    pub assistant_text: Option<String>,
+    pub tool_call: Option<PiToolCall>,
+    pub message: Option<String>,
+    pub logs: Option<Vec<String>>,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct McpConnectionTestResult {
+    pub ok: bool,
+    pub status_code: Option<u16>,
+    pub message: String,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DownloadTask {
+    pub id: String,
+    pub name: String,
+    pub status: String,
+    pub progress: u8,
+    pub speed: String,
+    pub file_path: String,
+    pub source: String,
+    pub download_url: Option<String>,
+    pub aria2_gid: Option<String>,
+}

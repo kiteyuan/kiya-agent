@@ -1,0 +1,1 @@
+{"default":{"identifier":"default","description":"Default capability for Kiya Agent desktop app","local":true,"windows":["main"],"permissions":["core:default","store:default"]}}

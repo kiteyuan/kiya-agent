@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default capability for Kiya Agent desktop app",
+  "windows": ["main"],
+  "permissions": ["core:default", "store:default"]
+}

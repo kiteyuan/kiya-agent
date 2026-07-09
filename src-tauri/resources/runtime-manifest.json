@@ -1,0 +1,120 @@
+{
+  "generatedAt": "2026-07-07T09:33:59.043Z",
+  "resourcesDir": "E:\\Projects\\kiya-agent\\src-tauri\\resources",
+  "runtimeTarget": "windows-x64",
+  "vendorSourceDir": "E:\\Projects\\kiya-agent\\vendor\\runtime\\windows-x64",
+  "copied": [
+    {
+      "source": "E:\\Projects\\kiya-agent\\local-mcp\\src\\index.js",
+      "destination": "E:\\Projects\\kiya-agent\\src-tauri\\resources\\local-mcp.js",
+      "required": true,
+      "exists": true
+    },
+    {
+      "source": "E:\\Projects\\kiya-agent\\src-tauri\\dev-bin\\mock-aria2-rpc.mjs",
+      "destination": "E:\\Projects\\kiya-agent\\src-tauri\\resources\\mock-aria2-rpc.mjs",
+      "required": true,
+      "exists": true
+    },
+    {
+      "source": "E:\\Projects\\kiya-agent\\vendor\\runtime\\windows-x64\\aria2c.exe",
+      "destination": "E:\\Projects\\kiya-agent\\src-tauri\\resources\\aria2c.exe",
+      "required": false,
+      "exists": true
+    },
+    {
+      "source": "E:\\Projects\\kiya-agent\\vendor\\runtime\\windows-x64\\aria2c.exe",
+      "destination": "E:\\Projects\\kiya-agent\\src-tauri\\resources\\aria2.exe",
+      "required": false,
+      "exists": true
+    },
+    {
+      "source": "E:\\Projects\\kiya-agent\\vendor\\runtime\\windows-x64\\node.exe",
+      "destination": "E:\\Projects\\kiya-agent\\src-tauri\\resources\\node.exe",
+      "required": false,
+      "exists": true
+    },
+    {
+      "source": "E:\\Projects\\kiya-agent\\vendor\\runtime\\windows-x64\\node.exe",
+      "destination": "E:\\Projects\\kiya-agent\\src-tauri\\resources\\node",
+      "required": false,
+      "exists": true
+    },
+    {
+      "source": "E:\\Projects\\kiya-agent\\vendor\\runtime\\windows-x64\\npm.cmd",
+      "destination": "E:\\Projects\\kiya-agent\\src-tauri\\resources\\npm.cmd",
+      "required": false,
+      "exists": true
+    },
+    {
+      "source": "E:\\Projects\\kiya-agent\\vendor\\runtime\\windows-x64\\npx.cmd",
+      "destination": "E:\\Projects\\kiya-agent\\src-tauri\\resources\\npx.cmd",
+      "required": false,
+      "exists": true
+    },
+    {
+      "source": "E:\\Projects\\kiya-agent\\node_modules",
+      "destination": "E:\\Projects\\kiya-agent\\src-tauri\\resources\\pi-runtime\\node_modules",
+      "required": false,
+      "exists": true
+    },
+    {
+      "source": "E:\\Projects\\kiya-agent\\package.json",
+      "destination": "E:\\Projects\\kiya-agent\\src-tauri\\resources\\pi-runtime\\package.json",
+      "required": true,
+      "exists": true
+    },
+    {
+      "source": "E:\\Projects\\kiya-agent\\package-lock.json",
+      "destination": "E:\\Projects\\kiya-agent\\src-tauri\\resources\\pi-runtime\\package-lock.json",
+      "required": true,
+      "exists": true
+    }
+  ],
+  "optional": [
+    {
+      "source": [
+        "E:\\Projects\\kiya-agent\\vendor\\runtime\\windows-x64\\aria2c",
+        "E:\\Projects\\kiya-agent\\vendor\\runtime\\windows-x64\\aria2"
+      ],
+      "destination": "E:\\Projects\\kiya-agent\\src-tauri\\resources\\aria2c",
+      "required": false,
+      "exists": false
+    },
+    {
+      "source": [
+        "E:\\Projects\\kiya-agent\\vendor\\runtime\\windows-x64\\aria2",
+        "E:\\Projects\\kiya-agent\\vendor\\runtime\\windows-x64\\aria2c"
+      ],
+      "destination": "E:\\Projects\\kiya-agent\\src-tauri\\resources\\aria2",
+      "required": false,
+      "exists": false
+    },
+    {
+      "source": [
+        "E:\\Projects\\kiya-agent\\vendor\\runtime\\windows-x64\\npm"
+      ],
+      "destination": "E:\\Projects\\kiya-agent\\src-tauri\\resources\\npm",
+      "required": false,
+      "exists": false
+    },
+    {
+      "source": [
+        "E:\\Projects\\kiya-agent\\vendor\\runtime\\windows-x64\\npx"
+      ],
+      "destination": "E:\\Projects\\kiya-agent\\src-tauri\\resources\\npx",
+      "required": false,
+      "exists": false
+    },
+    {
+      "source": [
+        "E:\\Projects\\kiya-agent\\vendor\\runtime\\windows-x64\\node_modules"
+      ],
+      "destination": "E:\\Projects\\kiya-agent\\src-tauri\\resources\\node_modules",
+      "required": false,
+      "exists": false
+    }
+  ],
+  "warnings": [],
+  "piRuntimeVersion": "^0.80.3"
+}
