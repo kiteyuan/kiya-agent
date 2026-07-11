@@ -11,7 +11,10 @@ use std::{
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter};
 
-use crate::models::{PiLaunchConfig, PiStreamEvent, PiToolCall, RemoteMcpServerConfig};
+use crate::{
+    models::{PiLaunchConfig, PiStreamEvent, PiToolCall, RemoteMcpServerConfig},
+    services::RuntimePaths,
+};
 
 const PI_STREAM_EVENT: &str = "kiya://pi-stream";
 const LOCAL_MCP_SERVER_ID: &str = "kiya-local";
@@ -99,8 +102,15 @@ impl PiManager {
             runtime.models_config_path.display()
         ));
 
+        let runtime_paths = RuntimePaths::from_command(app);
+        let download_dir = if launch.download_dir.trim().is_empty() {
+            runtime_paths.download_dir.clone()
+        } else {
+            PathBuf::from(launch.download_dir.trim())
+        };
         let mut command = build_command(&runtime, launch);
         command
+            .env("KIYA_DOWNLOAD_DIR", &download_dir)
             .arg("--mode")
             .arg("rpc")
             .arg("-e")
@@ -154,6 +164,7 @@ impl PiManager {
         launch: &PiLaunchConfig,
         request_id: &str,
         message: &str,
+        history_context: Option<&str>,
     ) -> Result<(), String> {
         let _prompt_guard = self.prompt_lock.lock().map_err(lock_error)?;
         self.ensure_started(app, launch)?;
@@ -183,7 +194,7 @@ impl PiManager {
             logs: None,
         });
 
-        let routed_message = build_routed_prompt(message);
+        let routed_message = build_routed_prompt(message, history_context);
         let command = json!({
             "id": request_id,
             "type": "prompt",
@@ -711,7 +722,7 @@ fn write_models_config(runtime: &PiRuntimeLayout, launch: &PiLaunchConfig) -> Re
         .map_err(|error| format!("写入 models.json 失败: {error}"))
 }
 
-fn build_routed_prompt(message: &str) -> String {
+fn build_routed_prompt(message: &str, history_context: Option<&str>) -> String {
     let download_file_tool = exposed_local_tool_name("download_file");
     let play_video_tool = exposed_local_tool_name("play_video");
     let open_folder_tool = exposed_local_tool_name("open_folder");
@@ -725,11 +736,27 @@ fn build_routed_prompt(message: &str) -> String {
             "当用户要求下载直链文件、保存资源、开始下载时，优先调用 `{download_file_tool}`，不要只做能力介绍。"
         ),
         &format!(
+            "调用 `{download_file_tool}` 时必须显式提供 `output` 参数，值只能是文件名本身且必须带后缀，不能包含目录路径。文件名应根据用户请求、资源标题或上下文推断，不要省略。"
+        ),
+        &format!(
             "当用户要求播放视频、打开视频直链、播放 mp4/http/https 媒体链接时，优先调用 `{play_video_tool}`，不要声称该工具不存在，也不要建议用户手动运行 shell 命令或外部播放器。"
+        ),
+        &format!(
+            "调用 `{play_video_tool}` 时必须显式提供 `title` 参数。标题应使用用户提到的影片名、资源标题或上下文里最自然的名称，不要省略，也不要退回成 `play` 这类通用名。"
         ),
         "如果用户提供了明确的可用 URL，并且意图已经足够清晰，应直接调用对应工具；只在参数缺失时再追问。",
     ]
     .join("\n");
+
+    let trimmed_history = history_context
+        .map(str::trim)
+        .filter(|history| !history.is_empty());
+
+    if let Some(history) = trimmed_history {
+        return format!(
+            "{routing_hint}\n\nRecent conversation context (oldest to newest):\n{history}\n\nLatest user request:\n{message}"
+        );
+    }
 
     format!("{routing_hint}\n\n用户请求：\n{message}")
 }

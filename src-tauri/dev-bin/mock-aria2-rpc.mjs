@@ -7,10 +7,10 @@ const PORT = 16800;
 const DEFAULT_DOWNLOAD_DIR =
   process.env.KIYA_DOWNLOAD_DIR?.trim() ||
   (process.platform === "darwin"
-    ? "/Users/runner/Downloads/KiyaAgent"
+    ? "/Users/runner/Downloads"
     : process.platform === "linux"
-      ? "/home/runner/Downloads/KiyaAgent"
-      : "C:/Users/runner/Downloads/KiyaAgent");
+      ? "/home/runner/Downloads"
+      : "C:/Users/runner/Downloads");
 
 const tasks = new Map();
 const stoppedOrder = [];
@@ -19,11 +19,46 @@ function createGid() {
   return Math.random().toString(16).slice(2, 18);
 }
 
+function resolveDownloadPath(dir, out, options = {}) {
+  const requestedPath = path.join(dir, out);
+  const allowOverwrite = String(options["allow-overwrite"] ?? "false") === "true";
+  const autoFileRenaming = String(options["auto-file-renaming"] ?? "true") !== "false";
+
+  if (allowOverwrite) {
+    return requestedPath;
+  }
+
+  const occupiedPaths = new Set(
+    Array.from(tasks.values())
+      .map((task) => task.files[0]?.path)
+      .filter(Boolean),
+  );
+
+  if (!fs.existsSync(requestedPath) && !occupiedPaths.has(requestedPath)) {
+    return requestedPath;
+  }
+
+  if (!autoFileRenaming) {
+    return requestedPath;
+  }
+
+  const parsed = path.parse(out);
+  for (let index = 1; index < 10_000; index += 1) {
+    const candidateName = `${parsed.name}(${index})${parsed.ext}`;
+    const candidatePath = path.join(dir, candidateName);
+    if (!fs.existsSync(candidatePath) && !occupiedPaths.has(candidatePath)) {
+      return candidatePath;
+    }
+  }
+
+  return requestedPath;
+}
+
 function makeTask(url, options = {}) {
   const gid = createGid();
   const out = options.out || "download.mp4";
   const dir = options.dir || DEFAULT_DOWNLOAD_DIR;
-  const filePath = path.join(dir, out);
+  const filePath = resolveDownloadPath(dir, out, options);
 
   return {
     gid,
@@ -114,8 +149,60 @@ function handleRpc(payload) {
   if (method === "aria2.tellWaiting") {
     return jsonRpc(
       id,
-      Array.from(tasks.values()).filter((task) => task.status === "waiting"),
+      Array.from(tasks.values()).filter(
+        (task) => task.status === "waiting" || task.status === "paused",
+      ),
     );
+  }
+
+  if (method === "aria2.pause") {
+    const gid = params[0];
+    const task = tasks.get(gid);
+    if (!task) {
+      return jsonRpcError(id, `Task not found: ${gid}`);
+    }
+
+    task.status = "paused";
+    task.downloadSpeed = "0";
+    return jsonRpc(id, gid);
+  }
+
+  if (method === "aria2.unpause") {
+    const gid = params[0];
+    const task = tasks.get(gid);
+    if (!task) {
+      return jsonRpcError(id, `Task not found: ${gid}`);
+    }
+
+    task.status = "active";
+    task.downloadSpeed = String(3 * 1024 * 1024);
+    return jsonRpc(id, gid);
+  }
+
+  if (method === "aria2.forceRemove") {
+    const gid = params[0];
+    if (!tasks.has(gid)) {
+      return jsonRpcError(id, `Task not found: ${gid}`);
+    }
+
+    tasks.delete(gid);
+    const nextStoppedOrder = stoppedOrder.filter((value) => value !== gid);
+    stoppedOrder.length = 0;
+    stoppedOrder.push(...nextStoppedOrder);
+    return jsonRpc(id, gid);
+  }
+
+  if (method === "aria2.removeDownloadResult") {
+    const gid = params[0];
+    if (!tasks.has(gid)) {
+      return jsonRpcError(id, `Task not found: ${gid}`);
+    }
+
+    tasks.delete(gid);
+    const nextStoppedOrder = stoppedOrder.filter((value) => value !== gid);
+    stoppedOrder.length = 0;
+    stoppedOrder.push(...nextStoppedOrder);
+    return jsonRpc(id, gid);
   }
 
   if (method === "aria2.tellStopped") {

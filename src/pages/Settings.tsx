@@ -1,15 +1,26 @@
 import { useState } from "react";
+import { Check, FolderOpen } from "lucide-react";
 
 import { SectionBlock } from "@/components/section-block";
 import {
-  createRemoteMcpServer,
+  modelNameOptionsByProvider,
   modelProviderOptions,
+  openExternalUrl,
   remoteMcpTransportOptions,
+  selectDownloadDirectory,
+  testModelConnection,
   testMcpServer,
 } from "@/services/desktop";
 import { useAppStore } from "@/stores/app-store";
-import { usePlaylistStore } from "@/stores/playlist-store";
-import type { ModelProvider, RemoteMcpServer } from "@/types/app";
+import type { LocalConfig, ModelProvider, RemoteMcpServer } from "@/types/app";
+
+const fieldLabelClassName = "text-xs font-medium text-zinc-500 dark:text-zinc-400";
+const inputClassName =
+  "w-full rounded-2xl border border-black/[0.08] bg-transparent px-4 py-3 text-sm text-zinc-900 outline-none transition focus:border-zinc-950 dark:border-white/10 dark:text-zinc-100 dark:focus:border-zinc-100";
+const subtleButtonClassName =
+  "inline-flex items-center rounded-full px-3 py-1.5 text-xs text-zinc-500 transition hover:bg-black/[0.04] hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-40 dark:text-zinc-400 dark:hover:bg-white/[0.05] dark:hover:text-zinc-100";
+const inputButtonClassName =
+  "inline-flex h-[50px] shrink-0 items-center rounded-2xl border border-black/[0.08] bg-transparent px-4 text-sm text-zinc-600 transition hover:border-black/[0.14] hover:text-zinc-950 dark:border-white/10 dark:text-zinc-300 dark:hover:border-white/20 dark:hover:text-zinc-100";
 
 function headersToText(headers: Record<string, string>) {
   if (Object.keys(headers).length === 0) {
@@ -34,19 +45,98 @@ function parseHeaders(text: string): Record<string, string> {
   );
 }
 
+function getMcpToken(headers: Record<string, string>) {
+  const authorizationEntry = Object.entries(headers).find(
+    ([key]) => key.toLowerCase() === "authorization",
+  );
+
+  if (!authorizationEntry) {
+    return "";
+  }
+
+  const [, rawValue] = authorizationEntry;
+  const matched = rawValue.match(/^Bearer\s+(.+)$/i);
+  return matched ? matched[1] : rawValue;
+}
+
+function updateMcpTokenHeaders(
+  headers: Record<string, string>,
+  token: string,
+): Record<string, string> {
+  const trimmedToken = token.trim();
+  const nextHeaders = Object.fromEntries(
+    Object.entries(headers).filter(([key]) => key.toLowerCase() !== "authorization"),
+  );
+
+  if (!trimmedToken) {
+    return nextHeaders;
+  }
+
+  return {
+    ...nextHeaders,
+    Authorization: `Bearer ${trimmedToken}`,
+  };
+}
+
+function canTestServer(server: RemoteMcpServer) {
+  if (server.isEmbedded) {
+    return Boolean(getMcpToken(server.headers).trim());
+  }
+
+  return Boolean(server.url.trim());
+}
+
+function getEmbeddedMcpTokenUrl(serverId: string) {
+  if (serverId === "magnet") {
+    return "https://magnet.kiteyuan.info/mcp";
+  }
+
+  if (serverId === "magnetflow") {
+    return "https://mybt.kiteyuan.info/mcp-docs";
+  }
+
+  return null;
+}
+
+function getEmbeddedMcpTokenLabel(server: RemoteMcpServer) {
+  if (server.id === "magnet") {
+    return "纸鸢搜索 MCP Token";
+  }
+
+  if (server.id === "magnetflow") {
+    return "纸鸢下载 MCP Token";
+  }
+
+  return `${server.name || "未命名 MCP"} MCP Token`;
+}
+
+function getModelOptions(provider: ModelProvider) {
+  return modelNameOptionsByProvider[provider] ?? [];
+}
+
+function canTestModel(config: LocalConfig) {
+  if (!config.modelApiKey.trim()) {
+    return false;
+  }
+
+  if (config.modelProvider === "custom-openai" && !config.modelBaseUrl.trim()) {
+    return false;
+  }
+
+  return true;
+}
+
 export default function SettingsPage() {
   const config = useAppStore((state) => state.config);
-  const logs = useAppStore((state) => state.logs);
   const updateConfig = useAppStore((state) => state.updateConfig);
-  const openSource = usePlaylistStore((state) => state.openSource);
+  const configDirty = useAppStore((state) => state.configDirty);
+  const configSaving = useAppStore((state) => state.configSaving);
+  const persistConfig = useAppStore((state) => state.persistConfig);
+  const [isPickingDownloadDir, setIsPickingDownloadDir] = useState(false);
   const [testState, setTestState] = useState<
     Record<string, { loading: boolean; message?: string; ok?: boolean }>
   >({});
-  const [playbackUrl, setPlaybackUrl] = useState(
-    "https://www.w3schools.com/html/mov_bbb.mp4",
-  );
-  const [playbackTitle, setPlaybackTitle] = useState("Big Buck Bunny 示例视频");
-  const [playbackMessage, setPlaybackMessage] = useState<string | null>(null);
+  const modelTestStateKey = "model-connection";
 
   const updateRemoteServer = (
     serverId: string,
@@ -59,358 +149,348 @@ export default function SettingsPage() {
     });
   };
 
+  const handleTestServer = async (server: RemoteMcpServer) => {
+    setTestState((state) => ({
+      ...state,
+      [server.id]: { loading: true },
+    }));
+
+    try {
+      const result = await testMcpServer(server);
+      setTestState((state) => ({
+        ...state,
+        [server.id]: {
+          loading: false,
+          ok: result.ok,
+          message: result.message,
+        },
+      }));
+    } catch (error) {
+      setTestState((state) => ({
+        ...state,
+        [server.id]: {
+          loading: false,
+          ok: false,
+          message:
+            error instanceof Error
+              ? error.message
+              : "MCP 连接测试失败",
+        },
+      }));
+    }
+  };
+
+  const clearModelTestState = () => {
+    setTestState((state) => {
+      if (!state[modelTestStateKey]) {
+        return state;
+      }
+
+      const nextState = { ...state };
+      delete nextState[modelTestStateKey];
+      return nextState;
+    });
+  };
+
+  const handleTestModel = async () => {
+    setTestState((state) => ({
+      ...state,
+      [modelTestStateKey]: { loading: true },
+    }));
+
+    try {
+      const result = await testModelConnection(config);
+      setTestState((state) => ({
+        ...state,
+        [modelTestStateKey]: {
+          loading: false,
+          ok: result.ok,
+          message: result.message,
+        },
+      }));
+    } catch (error) {
+      setTestState((state) => ({
+        ...state,
+        [modelTestStateKey]: {
+          loading: false,
+          ok: false,
+          message:
+            error instanceof Error
+              ? error.message
+              : "模型连接测试失败",
+        },
+      }));
+    }
+  };
+
+  const modelOptions = getModelOptions(config.modelProvider);
+  const hasPresetModel = modelOptions.some((option) => option.value === config.modelName);
+  const isCustomModelInputVisible =
+    config.modelProvider === "custom-openai" ||
+    (config.modelName.trim().length > 0 && !hasPresetModel);
+
   return (
-    <div className="h-full overflow-y-auto pr-2">
-      <div className="space-y-12 pb-8">
-      <SectionBlock title="Downloads">
-        <div className="grid gap-6 md:grid-cols-2">
+    <div className="h-full overflow-y-auto px-6 py-6">
+      <div className="mx-auto max-w-[920px] space-y-5 pb-7">
+      <SectionBlock
+        title="下载设置"
+      >
+        <div className="grid gap-4">
           <label className="space-y-2">
-            <span className="text-xs uppercase tracking-[0.24em] text-zinc-400">
-              download dir
-            </span>
-            <input
-              value={config.downloadDir}
-              onChange={(event) =>
-                updateConfig({ downloadDir: event.target.value })
-              }
-              className="w-full border-b border-black/[0.08] bg-transparent pb-3 text-sm text-zinc-900 outline-none dark:border-white/10 dark:text-zinc-100"
-            />
-          </label>
-          <label className="space-y-2">
-            <span className="text-xs uppercase tracking-[0.24em] text-zinc-400">
-              aria2 rpc port
-            </span>
-            <input
-              value={config.aria2RpcPort}
-              onChange={(event) =>
-                updateConfig({ aria2RpcPort: Number(event.target.value) || 0 })
-              }
-              className="w-full border-b border-black/[0.08] bg-transparent pb-3 text-sm text-zinc-900 outline-none dark:border-white/10 dark:text-zinc-100"
-            />
-          </label>
-        </div>
-      </SectionBlock>
-
-      <SectionBlock title="Integrations">
-        <div className="grid gap-6 md:grid-cols-2">
-          <label className="space-y-2">
-            <span className="text-xs uppercase tracking-[0.24em] text-zinc-400">
-              local mcp port
-            </span>
-            <input
-              value={config.localMcpPort}
-              onChange={(event) =>
-                updateConfig({ localMcpPort: Number(event.target.value) || 0 })
-              }
-              className="w-full border-b border-black/[0.08] bg-transparent pb-3 text-sm text-zinc-900 outline-none dark:border-white/10 dark:text-zinc-100"
-            />
-          </label>
-        </div>
-      </SectionBlock>
-
-      <SectionBlock title="Playback Test">
-        <div className="space-y-5">
-          <p className="text-sm leading-6 text-zinc-500 dark:text-zinc-400">
-            这里会绕过模型，直接把视频直链送进应用内播放器，专门用来验证
-            `play_video` 的前端播放链路是否正常。
-          </p>
-          <div className="grid gap-6 md:grid-cols-2">
-            <label className="space-y-2 md:col-span-2">
-              <span className="text-xs uppercase tracking-[0.24em] text-zinc-400">
-                video url
-              </span>
+            <span className={fieldLabelClassName}>下载目录</span>
+            <div className="flex items-center gap-3">
               <input
-                value={playbackUrl}
-                onChange={(event) => {
-                  setPlaybackUrl(event.target.value);
-                  setPlaybackMessage(null);
-                }}
-                placeholder="https://example.com/video.mp4"
-                className="w-full border-b border-black/[0.08] bg-transparent pb-3 text-sm text-zinc-900 outline-none dark:border-white/10 dark:text-zinc-100"
+                value={config.downloadDir}
+                onChange={(event) =>
+                  updateConfig({ downloadDir: event.target.value })
+                }
+                className={`${inputClassName} flex-1`}
               />
-            </label>
-            <label className="space-y-2">
-              <span className="text-xs uppercase tracking-[0.24em] text-zinc-400">
-                title
-              </span>
-              <input
-                value={playbackTitle}
-                onChange={(event) => {
-                  setPlaybackTitle(event.target.value);
-                  setPlaybackMessage(null);
-                }}
-                placeholder="可选标题"
-                className="w-full border-b border-black/[0.08] bg-transparent pb-3 text-sm text-zinc-900 outline-none dark:border-white/10 dark:text-zinc-100"
-              />
-            </label>
-            <div className="flex items-end gap-3">
               <button
                 type="button"
-                onClick={() => {
-                  const source = playbackUrl.trim();
-                  if (!source) {
-                    setPlaybackMessage("请先填写视频直链");
-                    return;
+                disabled={isPickingDownloadDir}
+                onClick={async () => {
+                  setIsPickingDownloadDir(true);
+                  try {
+                    const selectedPath = await selectDownloadDirectory(config.downloadDir);
+                    if (selectedPath) {
+                      updateConfig({ downloadDir: selectedPath });
+                    }
+                  } finally {
+                    setIsPickingDownloadDir(false);
                   }
-
-                  openSource(source, {
-                    title: playbackTitle.trim() || undefined,
-                    origin: "manual",
-                  });
-                  setPlaybackMessage("已直接送入应用内播放器，并写入播放列表");
                 }}
-                className="inline-flex items-center rounded-full bg-zinc-950 px-4 py-2 text-sm text-white transition hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-300"
+                className="inline-flex h-[50px] shrink-0 items-center gap-2 rounded-2xl border border-black/[0.08] px-4 text-sm text-zinc-600 transition hover:border-black/[0.14] hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:text-zinc-300 dark:hover:border-white/20 dark:hover:text-zinc-100"
               >
-                应用内播放
+                <FolderOpen className="h-4 w-4" />
+                {isPickingDownloadDir ? "选择中" : "浏览"}
               </button>
             </div>
-          </div>
-          {playbackMessage ? (
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {playbackMessage}
-            </p>
-          ) : null}
+          </label>
         </div>
       </SectionBlock>
 
-      <SectionBlock title="MCP Servers">
-        <div className="space-y-8">
+      <SectionBlock
+        title="MCP 服务"
+      >
+        <div className="space-y-5">
           {config.remoteMcpServers.map((server) => (
             <div
               key={server.id}
-              className="space-y-6 border-b border-black/[0.06] pb-6 dark:border-white/10"
+              className="space-y-2.5 pb-2"
             >
-              <div className="flex items-center justify-between gap-4">
-                <p className="text-sm text-zinc-900 dark:text-zinc-100">
-                  {server.name || "Untitled MCP"}
-                </p>
-                <div className="flex items-center gap-3">
-                  <label className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-zinc-400">
+              {server.isEmbedded ? (
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between gap-4">
+                    <div
+                      className={`flex items-center gap-2 text-sm ${
+                        testState[server.id]?.ok
+                          ? "text-emerald-600 dark:text-emerald-400"
+                          : "text-zinc-900 dark:text-zinc-100"
+                      }`}
+                    >
+                      {testState[server.id]?.ok ? (
+                        <Check className="h-4 w-4 shrink-0" />
+                      ) : null}
+                      <span>{getEmbeddedMcpTokenLabel(server)}</span>
+                    </div>
+                    {getEmbeddedMcpTokenUrl(server.id) ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void openExternalUrl(getEmbeddedMcpTokenUrl(server.id) ?? "")
+                        }
+                        className={`${subtleButtonClassName} shrink-0`}
+                      >
+                        点我获取MCP Token
+                      </button>
+                    ) : null}
+                  </div>
+                  <div className="flex min-w-0 items-center gap-3">
                     <input
-                      type="checkbox"
-                      checked={server.enabled}
+                      type="password"
+                      value={getMcpToken(server.headers)}
                       onChange={(event) =>
                         updateRemoteServer(server.id, (current) => ({
                           ...current,
-                          enabled: event.target.checked,
+                          headers: updateMcpTokenHeaders(current.headers, event.target.value),
                         }))
                       }
+                      placeholder="输入 MCP Token"
+                      className={`${inputClassName} min-w-0 flex-1`}
                     />
-                    enabled
-                  </label>
-                  <button
-                    type="button"
-                    disabled={server.isEmbedded}
-                    onClick={() =>
-                      updateConfig({
-                        remoteMcpServers: config.remoteMcpServers.filter(
-                          (item) => item.id !== server.id,
-                        ),
-                      })
-                    }
-                    className="text-xs uppercase tracking-[0.2em] text-zinc-400 transition hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:text-zinc-100"
-                  >
-                    remove
-                  </button>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      setTestState((state) => ({
-                        ...state,
-                        [server.id]: { loading: true },
-                      }));
-                      try {
-                        const result = await testMcpServer(server);
-                        setTestState((state) => ({
-                          ...state,
-                          [server.id]: {
-                            loading: false,
-                            ok: result.ok,
-                            message: result.message,
-                          },
-                        }));
-                      } catch (error) {
-                        setTestState((state) => ({
-                          ...state,
-                          [server.id]: {
-                            loading: false,
-                            ok: false,
-                            message:
-                              error instanceof Error
-                                ? error.message
-                                : "MCP 测试失败",
-                          },
-                        }));
-                      }
-                    }}
-                    className="text-xs uppercase tracking-[0.2em] text-zinc-400 transition hover:text-zinc-900 dark:hover:text-zinc-100"
-                  >
-                    {testState[server.id]?.loading ? "testing" : "test"}
-                  </button>
+                    <button
+                      type="button"
+                      disabled={!canTestServer(server) || testState[server.id]?.loading}
+                      onClick={() => void handleTestServer(server)}
+                      className={`${inputButtonClassName} justify-center disabled:cursor-not-allowed disabled:opacity-40`}
+                    >
+                      {testState[server.id]?.loading ? "测试中" : "测试连接"}
+                    </button>
+                  </div>
                 </div>
-              </div>
-
-              <div className="flex items-center gap-3 text-xs">
-                {server.isEmbedded ? (
-                  <span className="rounded-full bg-black/[0.05] px-3 py-1 text-zinc-500 dark:bg-white/[0.06] dark:text-zinc-300">
-                    系统默认
-                  </span>
-                ) : null}
-                {server.isEmbedded ? (
-                  <span className="text-zinc-500 dark:text-zinc-400">
-                    地址内置，token 需手动填写
-                  </span>
-                ) : null}
-                {testState[server.id]?.message ? (
-                  <span
-                    className={
-                      testState[server.id]?.ok
-                        ? "text-emerald-600 dark:text-emerald-400"
-                        : "text-amber-600 dark:text-amber-400"
-                    }
-                  >
-                    {testState[server.id]?.message}
-                  </span>
-                ) : null}
-              </div>
-
-              <div className="grid gap-6 md:grid-cols-2">
-                <label className="space-y-2">
-                  <span className="text-xs uppercase tracking-[0.24em] text-zinc-400">
-                    id
-                  </span>
-                  <input
-                    value={server.id}
-                    disabled={server.isEmbedded}
-                    onChange={(event) =>
-                      updateRemoteServer(server.id, (current) => ({
-                        ...current,
-                        id: event.target.value,
-                      }))
-                    }
-                    className="w-full border-b border-black/[0.08] bg-transparent pb-3 text-sm text-zinc-900 outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-zinc-100"
-                  />
-                </label>
-
-                <label className="space-y-2">
-                  <span className="text-xs uppercase tracking-[0.24em] text-zinc-400">
-                    name
-                  </span>
-                  <input
-                    value={server.name}
-                    disabled={server.isEmbedded}
-                    onChange={(event) =>
-                      updateRemoteServer(server.id, (current) => ({
-                        ...current,
-                        name: event.target.value,
-                      }))
-                    }
-                    className="w-full border-b border-black/[0.08] bg-transparent pb-3 text-sm text-zinc-900 outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-zinc-100"
-                  />
-                </label>
-
-                <label className="space-y-2">
-                  <span className="text-xs uppercase tracking-[0.24em] text-zinc-400">
-                    transport
-                  </span>
-                  <select
-                    value={server.transport}
-                    disabled={server.isEmbedded}
-                    onChange={(event) =>
-                      updateRemoteServer(server.id, (current) => ({
-                        ...current,
-                        transport: event.target.value as RemoteMcpServer["transport"],
-                      }))
-                    }
-                    className="w-full border-b border-black/[0.08] bg-transparent pb-3 text-sm text-zinc-900 outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-zinc-100"
-                  >
-                    {remoteMcpTransportOptions.map((option) => (
-                      <option
-                        key={option.value}
-                        value={option.value}
-                        className="bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100"
+              ) : (
+                <>
+                  <div className="flex items-center justify-between gap-4">
+                    <p className="text-sm text-zinc-900 dark:text-zinc-100">
+                      {server.name || "未命名 MCP"}
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                        <input
+                          type="checkbox"
+                          checked={server.enabled}
+                          onChange={(event) =>
+                            updateRemoteServer(server.id, (current) => ({
+                              ...current,
+                              enabled: event.target.checked,
+                            }))
+                          }
+                        />
+                        已启用
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateConfig({
+                            remoteMcpServers: config.remoteMcpServers.filter(
+                              (item) => item.id !== server.id,
+                            ),
+                          })
+                        }
+                        className={subtleButtonClassName}
                       >
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                        删除
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!canTestServer(server) || testState[server.id]?.loading}
+                        onClick={() => void handleTestServer(server)}
+                        className={subtleButtonClassName}
+                      >
+                        {testState[server.id]?.loading ? "测试中" : "测试连接"}
+                      </button>
+                    </div>
+                  </div>
 
-                <label className="space-y-2">
-                  <span className="text-xs uppercase tracking-[0.24em] text-zinc-400">
-                    url
-                  </span>
-                  <input
-                    value={server.url}
-                    disabled={server.isEmbedded}
-                    onChange={(event) =>
-                      updateRemoteServer(server.id, (current) => ({
-                        ...current,
-                        url: event.target.value,
-                      }))
-                    }
-                    placeholder={
-                      server.transport === "sse"
-                        ? "https://example.com/mcp/sse"
-                        : "https://example.com/mcp/stream"
-                    }
-                    className="w-full border-b border-black/[0.08] bg-transparent pb-3 text-sm text-zinc-900 outline-none disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:text-zinc-100"
-                  />
-                </label>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="space-y-2">
+                      <span className={fieldLabelClassName}>标识</span>
+                      <input
+                        value={server.id}
+                        onChange={(event) =>
+                          updateRemoteServer(server.id, (current) => ({
+                            ...current,
+                            id: event.target.value,
+                          }))
+                        }
+                        className={inputClassName}
+                      />
+                    </label>
 
-                <label className="space-y-2 md:col-span-2">
-                  <span className="text-xs uppercase tracking-[0.24em] text-zinc-400">
-                    headers json
-                  </span>
-                  <textarea
-                    key={`${server.id}-${headersToText(server.headers)}`}
-                    defaultValue={headersToText(server.headers)}
-                    onBlur={(event) => {
-                      try {
-                        const headers = parseHeaders(event.target.value);
-                        updateRemoteServer(server.id, (current) => ({
-                          ...current,
-                          headers,
-                        }));
-                      } catch {
-                        return;
-                      }
-                    }}
-                    placeholder={
-                      server.isEmbedded
-                        ? '{\n  "Authorization": "Bearer your_mcp_token"\n}'
-                        : '{\n  "Authorization": "Bearer ..."\n}'
-                    }
-                    rows={5}
-                    className="w-full resize-none border border-black/[0.06] bg-transparent px-0 py-3 text-sm text-zinc-900 outline-none dark:border-white/10 dark:text-zinc-100"
-                  />
-                </label>
-              </div>
+                    <label className="space-y-2">
+                      <span className={fieldLabelClassName}>名称</span>
+                      <input
+                        value={server.name}
+                        onChange={(event) =>
+                          updateRemoteServer(server.id, (current) => ({
+                            ...current,
+                            name: event.target.value,
+                          }))
+                        }
+                        className={inputClassName}
+                      />
+                    </label>
+
+                    <label className="space-y-2">
+                      <span className={fieldLabelClassName}>传输方式</span>
+                      <select
+                        value={server.transport}
+                        onChange={(event) =>
+                          updateRemoteServer(server.id, (current) => ({
+                            ...current,
+                            transport: event.target.value as RemoteMcpServer["transport"],
+                          }))
+                        }
+                        className={inputClassName}
+                      >
+                        {remoteMcpTransportOptions.map((option) => (
+                          <option
+                            key={option.value}
+                            value={option.value}
+                            className="bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100"
+                          >
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="space-y-2">
+                      <span className={fieldLabelClassName}>地址</span>
+                      <input
+                        value={server.url}
+                        onChange={(event) =>
+                          updateRemoteServer(server.id, (current) => ({
+                            ...current,
+                            url: event.target.value,
+                          }))
+                        }
+                        placeholder={
+                          server.transport === "sse"
+                            ? "https://example.com/mcp/sse"
+                            : "https://example.com/mcp/stream"
+                        }
+                        className={inputClassName}
+                      />
+                    </label>
+
+                    <label className="space-y-2 md:col-span-2">
+                      <span className={fieldLabelClassName}>请求头 JSON</span>
+                      <textarea
+                        key={`${server.id}-${headersToText(server.headers)}`}
+                        defaultValue={headersToText(server.headers)}
+                        onBlur={(event) => {
+                          try {
+                            const headers = parseHeaders(event.target.value);
+                            updateRemoteServer(server.id, (current) => ({
+                              ...current,
+                              headers,
+                            }));
+                          } catch {
+                            return;
+                          }
+                        }}
+                        placeholder={'{\n  "Authorization": "Bearer ..."\n}'}
+                        rows={5}
+                        className={`${inputClassName} min-h-[120px] resize-none`}
+                      />
+                    </label>
+                  </div>
+                </>
+              )}
+
+              {testState[server.id]?.message && !testState[server.id]?.ok ? (
+                <p
+                  className={`text-xs ${
+                    testState[server.id]?.ok
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-amber-600 dark:text-amber-400"
+                  }`}
+                >
+                  {testState[server.id]?.message}
+                </p>
+              ) : null}
             </div>
           ))}
-
-          <button
-            type="button"
-            onClick={() =>
-              updateConfig({
-                remoteMcpServers: [
-                  ...config.remoteMcpServers,
-                  createRemoteMcpServer(),
-                ],
-              })
-            }
-            className="text-sm text-zinc-500 transition hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-zinc-100"
-          >
-            新增 MCP 服务
-          </button>
         </div>
       </SectionBlock>
 
-      <SectionBlock title="Model">
-        <div className="grid gap-6 md:grid-cols-2">
+      <SectionBlock title="LLM模型">
+        <div className="grid gap-4 md:grid-cols-2">
           <label className="space-y-2">
-            <span className="text-xs uppercase tracking-[0.24em] text-zinc-400">
-              provider
+            <span className={fieldLabelClassName}>
+              提供方
             </span>
             <select
               value={config.modelProvider}
@@ -419,15 +499,13 @@ export default function SettingsPage() {
                 const preset = modelProviderOptions.find(
                   (option) => option.value === nextProvider,
                 );
+                clearModelTestState();
                 updateConfig({
                   modelProvider: nextProvider,
-                  modelName:
-                    preset && !config.modelName.trim()
-                      ? preset.defaultModel
-                      : config.modelName,
+                  modelName: preset?.defaultModel ?? "",
                 });
               }}
-              className="w-full border-b border-black/[0.08] bg-transparent pb-3 text-sm text-zinc-900 outline-none dark:border-white/10 dark:text-zinc-100"
+              className={inputClassName}
             >
               {modelProviderOptions.map((option) => (
                 <option
@@ -442,70 +520,137 @@ export default function SettingsPage() {
           </label>
 
           <label className="space-y-2">
-            <span className="text-xs uppercase tracking-[0.24em] text-zinc-400">
-              model
+            <span className={fieldLabelClassName}>
+              模型名称
             </span>
-            <input
-              value={config.modelName}
-              onChange={(event) =>
-                updateConfig({ modelName: event.target.value })
-              }
-              placeholder={
-                modelProviderOptions.find(
-                  (option) => option.value === config.modelProvider,
-                )?.defaultModel ?? ""
-              }
-              className="w-full border-b border-black/[0.08] bg-transparent pb-3 text-sm text-zinc-900 outline-none dark:border-white/10 dark:text-zinc-100"
-            />
+            <div className="space-y-2">
+              {config.modelProvider === "custom-openai" ? null : (
+                <select
+                  value={hasPresetModel ? config.modelName : "__custom__"}
+                  onChange={(event) => {
+                    if (event.target.value === "__custom__") {
+                      clearModelTestState();
+                      updateConfig({ modelName: "" });
+                      return;
+                    }
+
+                    clearModelTestState();
+                    updateConfig({ modelName: event.target.value });
+                  }}
+                  className={inputClassName}
+                >
+                  {modelOptions.map((option) => (
+                    <option
+                      key={option.value}
+                      value={option.value}
+                      className="bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100"
+                    >
+                      {option.label}
+                    </option>
+                  ))}
+                  <option
+                    value="__custom__"
+                    className="bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100"
+                  >
+                    手动输入其他模型
+                  </option>
+                </select>
+              )}
+
+              {isCustomModelInputVisible ? (
+                <input
+                  value={config.modelName}
+                  onChange={(event) => {
+                    clearModelTestState();
+                    updateConfig({ modelName: event.target.value })
+                  }}
+                  placeholder={
+                    modelProviderOptions.find(
+                      (option) => option.value === config.modelProvider,
+                    )?.defaultModel ?? ""
+                  }
+                  className={inputClassName}
+                />
+              ) : null}
+            </div>
           </label>
 
           <label className="space-y-2 md:col-span-2">
-            <span className="text-xs uppercase tracking-[0.24em] text-zinc-400">
-              api key
-            </span>
-            <input
-              type="password"
-              value={config.modelApiKey}
-              onChange={(event) =>
-                updateConfig({ modelApiKey: event.target.value })
-              }
-              placeholder="sk-..."
-              className="w-full border-b border-black/[0.08] bg-transparent pb-3 text-sm text-zinc-900 outline-none dark:border-white/10 dark:text-zinc-100"
-            />
+            <div className="flex items-center gap-2">
+              <span
+                className={`flex items-center gap-2 text-xs font-medium ${
+                  testState[modelTestStateKey]?.ok
+                    ? "text-emerald-600 dark:text-emerald-400"
+                    : "text-zinc-500 dark:text-zinc-400"
+                }`}
+              >
+                {testState[modelTestStateKey]?.ok ? (
+                  <Check className="h-4 w-4 shrink-0" />
+                ) : null}
+                <span>API 密钥</span>
+              </span>
+            </div>
+            <div className="flex min-w-0 items-center gap-3">
+              <input
+                type="password"
+                value={config.modelApiKey}
+                onChange={(event) => {
+                  clearModelTestState();
+                  updateConfig({ modelApiKey: event.target.value });
+                }}
+                placeholder="sk-..."
+                className={`${inputClassName} min-w-0 flex-1`}
+              />
+              <button
+                type="button"
+                disabled={!canTestModel(config) || testState[modelTestStateKey]?.loading}
+                onClick={() => void handleTestModel()}
+                className={`${inputButtonClassName} justify-center disabled:cursor-not-allowed disabled:opacity-40`}
+              >
+                {testState[modelTestStateKey]?.loading ? "测试中" : "测试连接"}
+              </button>
+            </div>
           </label>
 
-          <label className="space-y-2 md:col-span-2">
-            <span className="text-xs uppercase tracking-[0.24em] text-zinc-400">
-              base url
-            </span>
-            <input
-              value={config.modelBaseUrl}
-              onChange={(event) =>
-                updateConfig({ modelBaseUrl: event.target.value })
-              }
-              placeholder={
-                modelProviderOptions.find(
-                  (option) => option.value === config.modelProvider,
-                )?.baseUrlPlaceholder ?? ""
-              }
-              className="w-full border-b border-black/[0.08] bg-transparent pb-3 text-sm text-zinc-900 outline-none dark:border-white/10 dark:text-zinc-100"
-            />
-          </label>
-        </div>
-      </SectionBlock>
+          {config.modelProvider === "custom-openai" ? (
+            <label className="space-y-2 md:col-span-2">
+              <span className={fieldLabelClassName}>
+                接口地址
+              </span>
+              <input
+                value={config.modelBaseUrl}
+                onChange={(event) => {
+                  clearModelTestState();
+                  updateConfig({ modelBaseUrl: event.target.value })
+                }}
+                placeholder={
+                  modelProviderOptions.find(
+                    (option) => option.value === config.modelProvider,
+                  )?.baseUrlPlaceholder ?? ""
+                }
+                className={inputClassName}
+              />
+            </label>
+          ) : null}
 
-      <SectionBlock title="Diagnostics">
-        <div className="space-y-3">
-          {logs.map((log, index) => (
-            <p
-              key={`${index}-${log}`}
-              className="font-mono text-xs leading-6 text-zinc-500 dark:text-zinc-400"
-            >
-              {log}
+          {testState[modelTestStateKey]?.message && !testState[modelTestStateKey]?.ok ? (
+            <p className="text-xs text-amber-600 dark:text-amber-400 md:col-span-2">
+              {testState[modelTestStateKey]?.message}
             </p>
-          ))}
+          ) : null}
         </div>
       </SectionBlock>
+
+      <div className="sticky bottom-0 flex justify-end pt-2">
+        <button
+          type="button"
+          disabled={!configDirty || configSaving}
+          onClick={() => void persistConfig()}
+          className="inline-flex h-11 items-center justify-center rounded-2xl bg-zinc-950 px-5 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-white/90 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-200 dark:disabled:bg-zinc-700 dark:disabled:text-zinc-300"
+        >
+          保存设置
+        </button>
+      </div>
       </div>
     </div>
   );

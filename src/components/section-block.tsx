@@ -13,9 +13,9 @@ export function SectionBlock({
   children,
 }: SectionBlockProps) {
   return (
-    <section className="space-y-5 border-b border-black/[0.06] pb-8 dark:border-white/10">
+    <section className="space-y-3 pb-3">
       <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
+        <div className="space-y-0.5">
           <h2 className="text-sm font-medium tracking-tight text-zinc-900 dark:text-zinc-100">
             {title}
           </h2>

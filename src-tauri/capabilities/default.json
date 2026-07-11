@@ -3,5 +3,5 @@
   "identifier": "default",
   "description": "Default capability for Kiya Agent desktop app",
   "windows": ["main"],
-  "permissions": ["core:default", "store:default"]
+  "permissions": ["core:default", "store:default", "dialog:default"]
 }

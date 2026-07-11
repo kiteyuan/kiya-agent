@@ -1,15 +1,15 @@
+import fs from "node:fs";
+import path from "node:path";
 import readline from "node:readline";
 import { spawn } from "node:child_process";
-import path from "node:path";
-
 function fallbackDownloadDir() {
   if (process.platform === "darwin") {
-    return "/Users/runner/Downloads/KiyaAgent";
+    return "/Users/runner/Downloads";
   }
   if (process.platform === "linux") {
-    return "/home/runner/Downloads/KiyaAgent";
+    return "/home/runner/Downloads";
   }
-  return "C:/Users/runner/Downloads/KiyaAgent";
+  return "C:/Users/runner/Downloads";
 }
 
 const DOWNLOAD_DIR =
@@ -20,7 +20,7 @@ const tools = [
   {
     name: "download_file",
     description:
-      "Download a remote file through aria2. Use this immediately when the user asks to download, save, cache, or fetch a direct file URL.",
+      "Download a remote file through aria2. Always provide both the direct URL and a final filename in `output`. `output` must be a filename only with extension, never a directory path.",
     inputSchema: {
       type: "object",
       properties: {
@@ -30,16 +30,17 @@ const tools = [
         },
         output: {
           type: "string",
-          description: "Optional output filename or absolute path",
+          description:
+            "Required target filename only, including extension. Do not include any directory path.",
         },
       },
-      required: ["url"],
+      required: ["url", "output"],
     },
   },
   {
     name: "play_video",
     description:
-      "Queue a video for the Kiya in-app player. Use this immediately when the user asks to play a video, open a media link, or play an mp4/http/https video URL.",
+      "Queue a video for the Kiya in-app player. Always provide a human-readable `title` when playing a file or media URL so the player and playlist do not fall back to generic names like `play`.",
     inputSchema: {
       type: "object",
       properties: {
@@ -53,9 +54,10 @@ const tools = [
         },
         title: {
           type: "string",
-          description: "Optional display title shown in the in-app player and playlist",
+          description: "Required display title shown in the in-app player and playlist",
         },
       },
+      required: ["title"],
       anyOf: [{ required: ["filePath"] }, { required: ["url"] }],
     },
   },
@@ -113,6 +115,24 @@ function toolResult(text) {
   };
 }
 
+function resolveUniqueOutputName(downloadDir, output) {
+  const requestedPath = path.join(downloadDir, output);
+  if (!fs.existsSync(requestedPath)) {
+    return output;
+  }
+
+  const parsed = path.parse(output);
+  for (let index = 1; index < 10_000; index += 1) {
+    const candidate = `${parsed.name}(${index})${parsed.ext}`;
+    const candidatePath = path.join(downloadDir, candidate);
+    if (!fs.existsSync(candidatePath)) {
+      return candidate;
+    }
+  }
+
+  return output;
+}
+
 async function callTool(name, args = {}) {
   switch (name) {
     case "download_file":
@@ -126,27 +146,20 @@ async function callTool(name, args = {}) {
   }
 }
 
-function deriveFilename(url) {
-  try {
-    const parsed = new URL(url);
-    const filename = parsed.pathname.split("/").pop();
-    return filename && filename.trim()
-      ? decodeURIComponent(filename)
-      : "download.mp4";
-  } catch {
-    return "download.mp4";
-  }
-}
-
 async function downloadFile(args) {
   if (typeof args.url !== "string" || !args.url.trim()) {
     throw new Error("download_file requires a valid url");
   }
 
-  const filename =
-    typeof args.output === "string" && args.output.trim()
-      ? path.basename(args.output)
-      : deriveFilename(args.url);
+  if (typeof args.output !== "string" || !args.output.trim()) {
+    throw new Error("download_file requires a valid output filename");
+  }
+
+  const requestedOutput = path.basename(args.output.trim());
+  if (!requestedOutput || requestedOutput === "." || requestedOutput === "..") {
+    throw new Error("download_file requires a valid output filename");
+  }
+  const output = resolveUniqueOutputName(DOWNLOAD_DIR, requestedOutput);
 
   const response = await fetch(ARIA2_RPC_URL, {
     method: "POST",
@@ -157,7 +170,12 @@ async function downloadFile(args) {
       jsonrpc: "2.0",
       id: "kiya-local-mcp",
       method: "aria2.addUri",
-      params: [[args.url], { dir: DOWNLOAD_DIR, out: filename }],
+      params: [[args.url], {
+        dir: DOWNLOAD_DIR,
+        out: output,
+        "allow-overwrite": "false",
+        "auto-file-renaming": "true",
+      }],
     }),
   }).catch((error) => {
     throw new Error(`aria2 RPC unavailable: ${error.message}`);
@@ -174,7 +192,7 @@ async function downloadFile(args) {
 
   const gid = payload.result || "unknown";
   return toolResult(
-    `Download started via aria2. gid=${gid}, output=${path.join(DOWNLOAD_DIR, filename)}`,
+    `Download started via aria2. gid=${gid}, dir=${DOWNLOAD_DIR}, out=${output}`,
   );
 }
 
@@ -207,10 +225,13 @@ function resolveMediaSource(args) {
 
 async function playVideo(args) {
   const mediaSource = resolveMediaSource(args);
-  const title =
-    typeof args.title === "string" && args.title.trim() ? args.title.trim() : null;
+  if (typeof args.title !== "string" || !args.title.trim()) {
+    throw new Error("play_video requires a non-empty title");
+  }
+
+  const title = args.title.trim();
   return toolResult(
-    `Queued ${mediaSource.kind} ${mediaSource.value}${title ? ` with title ${title}` : ""}`,
+    `Queued ${mediaSource.kind} ${mediaSource.value} with title ${title}`,
   );
 }
 

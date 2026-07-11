@@ -250,7 +250,6 @@ impl RuntimePaths {
         home_dir()
             .unwrap_or_else(env::temp_dir)
             .join("Downloads")
-            .join("KiyaAgent")
     }
 
     pub fn runtime_target() -> String {

@@ -25,6 +25,7 @@ pub struct RuntimeDefaults {
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PiLaunchConfig {
+    pub download_dir: String,
     pub remote_mcp_servers: Vec<RemoteMcpServerConfig>,
     pub model_provider: String,
     pub model_name: String,
@@ -50,6 +51,35 @@ pub struct PiToolCall {
     pub detail: String,
 }
 
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatToolCall {
+    pub tool: String,
+    pub detail: String,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatMessage {
+    pub id: String,
+    pub role: String,
+    pub content: String,
+    pub timestamp: String,
+    pub created_at: Option<String>,
+    pub tool_call: Option<ChatToolCall>,
+    pub streaming: Option<bool>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatConversationSummary {
+    pub id: String,
+    pub title: String,
+    pub created_at_ms: u64,
+    pub updated_at_ms: u64,
+    pub message_count: u32,
+}
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PiStreamEvent {
@@ -70,7 +100,7 @@ pub struct McpConnectionTestResult {
     pub message: String,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DownloadTask {
     pub id: String,
@@ -78,8 +108,21 @@ pub struct DownloadTask {
     pub status: String,
     pub progress: u8,
     pub speed: String,
+    pub total_bytes: Option<u64>,
+    pub created_at_ms: Option<u64>,
     pub file_path: String,
     pub source: String,
     pub download_url: Option<String>,
     pub aria2_gid: Option<String>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaylistItem {
+    pub id: String,
+    pub title: String,
+    pub source: String,
+    pub kind: String,
+    pub origin: String,
+    pub added_at: String,
 }

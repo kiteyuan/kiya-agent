@@ -44,9 +44,11 @@ export interface RuntimeDefaults {
 export interface DownloadTask {
   id: string;
   name: string;
-  status: "queued" | "downloading" | "completed" | "failed";
+  status: "queued" | "paused" | "downloading" | "completed" | "failed";
   progress: number;
   speed: string;
+  totalBytes?: number;
+  createdAtMs?: number;
   filePath: string;
   source: string;
   downloadUrl?: string;
@@ -88,6 +90,15 @@ export interface ChatMessage {
   role: "user" | "assistant" | "tool";
   content: string;
   timestamp: string;
+  createdAt?: string;
   toolCall?: ToolCallSummary;
   streaming?: boolean;
+}
+
+export interface ChatConversationSummary {
+  id: string;
+  title: string;
+  createdAtMs: number;
+  updatedAtMs: number;
+  messageCount: number;
 }
