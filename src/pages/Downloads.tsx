@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import { FolderOpen, Pause, Play, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { FolderOpen, Pause, Play, RotateCcw, Trash2 } from "lucide-react";
 
 import { useDownloadStore } from "@/stores/download-store";
 import type { DownloadTask } from "@/types/app";
@@ -39,12 +39,12 @@ function formatBytes(bytes?: number) {
 }
 
 function formatTaskMeta(task: DownloadTask) {
-  const size = formatBytes(task.totalBytes);
   if (!task.createdAtMs) {
-    return size;
+    return formatBytes(task.totalBytes);
   }
 
   const time = new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
     month: "numeric",
     day: "numeric",
     hour: "2-digit",
@@ -52,7 +52,23 @@ function formatTaskMeta(task: DownloadTask) {
     hour12: false,
   }).format(task.createdAtMs);
 
-  return `${size} · ${time}`;
+  return `${time} · ${formatBytes(task.totalBytes)}`;
+}
+
+function formatTaskSecondaryLine(task: DownloadTask) {
+  const parts = [formatTaskMeta(task), statusLabel(task.status)];
+  const etaLabel = getEtaLabel(task);
+
+  if (task.status === "downloading" || task.status === "queued") {
+    parts.push(task.speed);
+    if (etaLabel) {
+      parts.push(etaLabel);
+    }
+  } else if (task.status === "paused") {
+    parts.push("已暂停");
+  }
+
+  return parts.join(" · ");
 }
 
 function parseSpeedToBytesPerSecond(speed: string) {
@@ -123,8 +139,11 @@ export default function DownloadsPage() {
   const openDownloadFolder = useDownloadStore((state) => state.openDownloadFolder);
   const pauseTask = useDownloadStore((state) => state.pauseTask);
   const resumeTask = useDownloadStore((state) => state.resumeTask);
+  const retryTask = useDownloadStore((state) => state.retryTask);
   const clearHistory = useDownloadStore((state) => state.clearHistory);
   const removeTask = useDownloadStore((state) => state.removeTask);
+  const [isConfirmingClear, setIsConfirmingClear] = useState(false);
+  const [isClearingHistory, setIsClearingHistory] = useState(false);
 
   useEffect(() => {
     if (!hydrated) {
@@ -141,51 +160,52 @@ export default function DownloadsPage() {
     };
   }, [hydrated, refreshTasks]);
 
-  return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="flex justify-end px-6 pt-5">
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            disabled={tasks.length === 0}
-            onClick={() => {
-              if (!window.confirm("确认清空下载记录吗？这不会删除已经下载的文件。")) {
-                return;
-              }
-              void clearHistory();
-            }}
-            className="inline-flex items-center gap-2 rounded-full bg-black/[0.04] px-4 py-2 text-sm text-zinc-600 transition hover:bg-black/[0.08] hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-white/[0.05] dark:text-zinc-300 dark:hover:bg-white/[0.08] dark:hover:text-zinc-100"
-          >
-            清空记录
-          </button>
-          <button
-            type="button"
-            onClick={() => void openDownloadFolder()}
-            className="inline-flex items-center gap-2 rounded-full bg-black/[0.04] px-4 py-2 text-sm text-zinc-600 transition hover:bg-black/[0.08] hover:text-zinc-950 dark:bg-white/[0.05] dark:text-zinc-300 dark:hover:bg-white/[0.08] dark:hover:text-zinc-100"
-          >
-            <FolderOpen className="h-4 w-4" />
-            打开资源管理器
-          </button>
-        </div>
-      </div>
+  async function handleConfirmClearHistory() {
+    if (tasks.length === 0 || isClearingHistory) {
+      return;
+    }
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+    setIsClearingHistory(true);
+    try {
+      await clearHistory();
+      setIsConfirmingClear(false);
+    } finally {
+      setIsClearingHistory(false);
+    }
+  }
+
+  return (
+    <div className="relative flex h-full min-h-0 flex-col">
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5 pb-24">
         <div className="space-y-4">
           {tasks.map((task) => {
-            const etaLabel = getEtaLabel(task);
-
             return (
               <div
                 key={task.id}
-                className="space-y-3 border-b border-black/[0.06] px-1 pb-5 dark:border-white/10"
+                className="rounded-3xl bg-white px-4 py-4 dark:bg-zinc-900/80"
               >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex min-w-0 items-center justify-between gap-3">
-                    <p className="min-w-0 flex-1 truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
                       {task.name}
                     </p>
+                    <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+                      {formatTaskSecondaryLine(task)}
+                    </p>
+                    {task.status === "downloading" ||
+                    task.status === "queued" ||
+                    task.status === "paused" ? (
+                      <div className="pt-1">
+                        <div className="h-[3px] w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+                          <div
+                            className="h-full rounded-full bg-zinc-950 transition-all dark:bg-zinc-100"
+                            style={{ width: `${task.progress}%` }}
+                          />
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
-                  <div className="flex shrink-0 items-center gap-3">
+                  <div className="flex w-36 shrink-0 items-center justify-end gap-3">
                     {task.status === "downloading" && task.aria2Gid ? (
                       <button
                         type="button"
@@ -216,6 +236,16 @@ export default function DownloadsPage() {
                         <FolderOpen className="h-4 w-4" />
                       </button>
                     ) : null}
+                    {task.status === "failed" && task.downloadUrl ? (
+                      <button
+                        type="button"
+                        onClick={() => void retryTask(task.id)}
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-zinc-950 text-white transition hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-300"
+                        aria-label={`重试 ${task.name}`}
+                      >
+                        <RotateCcw className="h-4 w-4" />
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => void removeTask(task.id)}
@@ -226,35 +256,52 @@ export default function DownloadsPage() {
                     </button>
                   </div>
                 </div>
-
-                <div className="flex items-center justify-between gap-4 text-xs text-zinc-500 dark:text-zinc-400">
-                  <span className="truncate">{formatTaskMeta(task)}</span>
-                  <div className="flex items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
-                    <span>{statusLabel(task.status)}</span>
-                    {task.status === "downloading" || task.status === "queued" ? (
-                      <>
-                        <span>{task.speed}</span>
-                        {etaLabel ? <span>{etaLabel}</span> : null}
-                      </>
-                    ) : task.status === "paused" ? (
-                      <span>已暂停</span>
-                    ) : null}
-                  </div>
-                </div>
-
-                {task.status === "downloading" || task.status === "queued" || task.status === "paused" ? (
-                  <div className="h-[3px] w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
-                    <div
-                      className="h-full rounded-full bg-zinc-950 transition-all dark:bg-zinc-100"
-                      style={{ width: `${task.progress}%` }}
-                    />
-                  </div>
-                ) : null}
               </div>
             );
           })}
         </div>
       </div>
+
+      <button
+        type="button"
+        disabled={tasks.length === 0}
+        onClick={() => setIsConfirmingClear(true)}
+        className="absolute bottom-6 right-6 inline-flex h-12 w-12 items-center justify-center rounded-full bg-zinc-950 text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-300"
+        aria-label="清空下载记录"
+      >
+        <Trash2 className="h-4 w-4" />
+      </button>
+
+      {isConfirmingClear ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 px-4 backdrop-blur-sm dark:bg-black/40">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-5 text-zinc-950 shadow-[0_12px_40px_rgba(0,0,0,0.12)] dark:bg-zinc-900 dark:text-zinc-100">
+            <div className="space-y-2">
+              <p className="text-sm font-medium">清空下载记录？</p>
+              <p className="text-xs text-zinc-400 dark:text-zinc-500">
+                已下载完成的本地文件不会删除。
+              </p>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={isClearingHistory}
+                onClick={() => setIsConfirmingClear(false)}
+                className="inline-flex h-10 items-center justify-center rounded-full bg-black/[0.04] px-4 text-sm text-zinc-600 transition hover:bg-black/[0.08] hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white/[0.05] dark:text-zinc-300 dark:hover:bg-white/[0.08] dark:hover:text-zinc-100"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                disabled={isClearingHistory}
+                onClick={() => void handleConfirmClearHistory()}
+                className="inline-flex h-10 items-center justify-center rounded-full bg-zinc-950 px-4 text-sm text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-300"
+              >
+                {isClearingHistory ? "清空中" : "确认删除"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

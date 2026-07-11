@@ -27,6 +27,7 @@ interface DownloadStore {
   markCompleted: (taskId: string) => void;
   pauseTask: (taskId: string) => Promise<void>;
   resumeTask: (taskId: string) => Promise<void>;
+  retryTask: (taskId: string) => Promise<void>;
   openDownloadFolder: (task?: DownloadTask) => Promise<string>;
 }
 
@@ -56,6 +57,12 @@ function resolveOutputName(output: unknown, fallbackName: string) {
 function normalizePath(output: unknown, fallbackName: string, downloadDir: string) {
   const fileName = resolveOutputName(output, fallbackName);
   return `${downloadDir}/${fileName}`;
+}
+
+function deriveOutputNameFromPath(filePath: string) {
+  const segments = filePath.split(/[\\/]/);
+  const outputName = segments.at(-1)?.trim();
+  return outputName || undefined;
 }
 
 function parseToolCallDetail(detail: string) {
@@ -418,6 +425,36 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
       tasks: nextTasks,
     }));
     void persistTasks(nextTasks);
+  },
+  retryTask: async (taskId) => {
+    const task = get().tasks.find((item) => item.id === taskId);
+    if (!task || task.status !== "failed" || !task.downloadUrl) {
+      return;
+    }
+
+    await clearDownloadTask(task);
+
+    const downloadDir = useAppStore.getState().config.downloadDir;
+    const outputName = deriveOutputNameFromPath(task.filePath);
+    const nextTask = await submitDownload(task.downloadUrl, downloadDir, outputName);
+    const mergedTask: DownloadTask = {
+      ...nextTask,
+      id: task.id,
+    };
+    const nextTasks = sortTasks(
+      get().tasks.map((item) => (item.id === taskId ? mergedTask : item)),
+    );
+
+    set(() => ({
+      tasks: nextTasks,
+    }));
+    void persistTasks(nextTasks);
+
+    [0, 800, 2000].forEach((delayMs) => {
+      window.setTimeout(() => {
+        void get().refreshTasks();
+      }, delayMs);
+    });
   },
   openDownloadFolder: async (task) => {
     if (!task) {

@@ -1,7 +1,7 @@
 import {
   Activity,
-  Bot,
   Download,
+  Github,
   ListVideo,
   PenSquare,
   Settings2,
@@ -12,6 +12,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { PlayerOverlay } from "@/components/player-overlay";
 import { cn } from "@/lib/utils";
+import { openExternalUrl } from "@/services/desktop";
 import { useAppStore } from "@/stores/app-store";
 import { useChatStore } from "@/stores/chat-store";
 import { useDownloadStore } from "@/stores/download-store";
@@ -113,9 +114,14 @@ export function AppShell() {
       <div className="flex h-full w-full overflow-hidden">
         <aside className="flex h-full w-[264px] shrink-0 flex-col border-r border-black/[0.06] bg-white/60 px-3 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-zinc-950/70">
           <div className="flex items-center gap-3 px-2.5 py-1.5">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-zinc-950 text-white dark:bg-zinc-100 dark:text-zinc-950">
-              <Bot className="h-5 w-5" />
-            </div>
+            <button
+              type="button"
+              onClick={() => void openExternalUrl("https://github.com/kiteyuan/kiya-agent")}
+              className="flex h-10 w-10 items-center justify-center rounded-2xl bg-zinc-950 text-white transition hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-300"
+              aria-label="打开 Kiya Agent GitHub 仓库"
+            >
+              <Github className="h-5 w-5" />
+            </button>
             <div className="min-w-0">
               <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
                 Kiya Agent

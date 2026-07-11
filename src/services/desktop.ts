@@ -347,13 +347,14 @@ export async function testModelConnection(
 export async function submitDownload(
   query: string,
   downloadDir = defaultConfig.downloadDir,
+  output?: string,
 ): Promise<DownloadTask> {
   const title = query.trim() || "未命名资源";
 
   if (isTauriRuntime()) {
     const result = await invoke<DownloadTask>("submit_download_request", {
       url: query,
-      output: undefined,
+      output,
       downloadDir: downloadDir,
     });
     return result;
@@ -361,13 +362,14 @@ export async function submitDownload(
 
   return {
     id: crypto.randomUUID(),
-    name: title,
+    name: output?.replace(/\.[^/.]+$/, "") || title,
     status: "downloading",
     progress: 24,
     speed: "8.4 MB/s",
     createdAtMs: Date.now(),
-    filePath: `${downloadDir}/${title}.mp4`,
+    filePath: `${downloadDir}/${output ?? `${title}.mp4`}`,
     source: "远程 MCP",
+    downloadUrl: query,
   };
 }
 
