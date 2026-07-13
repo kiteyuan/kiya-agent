@@ -2,6 +2,7 @@ import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { useEffect, useMemo } from "react";
 
+import { useI18n } from "@/i18n";
 import { useImageGalleryStore } from "@/stores/image-gallery-store";
 
 function resolveImageUrl(source: string) {
@@ -21,6 +22,7 @@ function resolveImageUrl(source: string) {
 }
 
 export function ImageGalleryOverlay() {
+  const { t } = useI18n();
   const activeGallery = useImageGalleryStore((state) => state.activeGallery);
   const closeGallery = useImageGalleryStore((state) => state.closeGallery);
   const showPrevious = useImageGalleryStore((state) => state.showPrevious);
@@ -70,7 +72,7 @@ export function ImageGalleryOverlay() {
         type="button"
         onClick={closeGallery}
         className="absolute right-4 top-4 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white transition hover:bg-black/80"
-        aria-label="关闭图片预览"
+        aria-label={t("overlay.closeImagePreview")}
       >
         <X className="h-4 w-4" />
       </button>
@@ -83,7 +85,7 @@ export function ImageGalleryOverlay() {
                 type="button"
                 onClick={showPrevious}
                 className="absolute left-4 top-1/2 z-10 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white transition hover:bg-black/80"
-                aria-label="上一张"
+                aria-label={t("overlay.previousImage")}
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
@@ -91,7 +93,7 @@ export function ImageGalleryOverlay() {
                 type="button"
                 onClick={showNext}
                 className="absolute right-4 top-1/2 z-10 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white transition hover:bg-black/80"
-                aria-label="下一张"
+                aria-label={t("overlay.nextImage")}
               >
                 <ChevronRight className="h-5 w-5" />
               </button>
@@ -109,7 +111,7 @@ export function ImageGalleryOverlay() {
             </div>
           ) : (
             <div className="flex h-full w-full items-center justify-center px-6 text-sm text-zinc-300">
-              当前预览仅在 Tauri 桌面环境中加载本地图片
+              {t("overlay.localPreviewDesktopOnly")}
             </div>
           )}
         </div>

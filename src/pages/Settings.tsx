@@ -1,19 +1,24 @@
 import { useState } from "react";
 import { Check, FolderOpen } from "lucide-react";
 
+import { useI18n, getModelProviderLabel, getRemoteTransportLabel } from "@/i18n";
 import { SectionBlock } from "@/components/section-block";
 import {
   modelNameOptionsByProvider,
   modelProviderOptions,
   normalizeDesktopError,
   openExternalUrl,
-  remoteMcpTransportOptions,
   selectDownloadDirectory,
   testModelConnection,
   testMcpServer,
 } from "@/services/desktop";
 import { useAppStore } from "@/stores/app-store";
-import type { LocalConfig, ModelProvider, RemoteMcpServer } from "@/types/app";
+import type {
+  AppLanguage,
+  LocalConfig,
+  ModelProvider,
+  RemoteMcpServer,
+} from "@/types/app";
 
 const fieldLabelClassName = "text-xs font-medium text-zinc-500 dark:text-zinc-400";
 const inputClassName =
@@ -38,7 +43,7 @@ function parseHeaders(text: string): Record<string, string> {
 
   const parsed = JSON.parse(trimmed) as unknown;
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("headers 必须是 JSON 对象");
+    throw new Error("Headers must be a JSON object.");
   }
 
   return Object.fromEntries(
@@ -99,16 +104,16 @@ function getEmbeddedMcpTokenUrl(serverId: string) {
   return null;
 }
 
-function getEmbeddedMcpTokenLabel(server: RemoteMcpServer) {
+function getEmbeddedMcpTokenLabel(server: RemoteMcpServer, language: AppLanguage) {
   if (server.id === "magnet") {
-    return "纸鸢搜索 MCP Token";
+    return language === "en" ? "Magnet Search MCP Token" : "纸鸢搜索 MCP Token";
   }
 
   if (server.id === "magnetflow") {
-    return "纸鸢下载 MCP Token";
+    return language === "en" ? "Magnet Download MCP Token" : "纸鸢下载 MCP Token";
   }
 
-  return `${server.name || "未命名 MCP"} MCP Token`;
+  return `${server.name || (language === "en" ? "Unnamed" : "未命名")} MCP Token`;
 }
 
 function getModelOptions(provider: ModelProvider) {
@@ -132,6 +137,7 @@ function canTestModel(config: LocalConfig) {
 }
 
 export default function SettingsPage() {
+  const { language, t } = useI18n();
   const config = useAppStore((state) => state.config);
   const updateConfig = useAppStore((state) => state.updateConfig);
   const configDirty = useAppStore((state) => state.configDirty);
@@ -176,7 +182,10 @@ export default function SettingsPage() {
         [server.id]: {
           loading: false,
           ok: false,
-          message: normalizeDesktopError(error, "MCP 连接测试失败"),
+          message: normalizeDesktopError(
+            error,
+            language === "en" ? "MCP connection test failed." : "MCP 连接测试失败",
+          ),
         },
       }));
     }
@@ -216,7 +225,10 @@ export default function SettingsPage() {
         [modelTestStateKey]: {
           loading: false,
           ok: false,
-          message: normalizeDesktopError(error, "模型连接测试失败"),
+          message: normalizeDesktopError(
+            error,
+            language === "en" ? "Model connection test failed." : "模型连接测试失败",
+          ),
         },
       }));
     }
@@ -228,428 +240,425 @@ export default function SettingsPage() {
     config.modelProvider === "custom-openai" ||
     (config.modelName.trim().length > 0 && !hasPresetModel);
 
+  const providerOptions = modelProviderOptions.map((option) => ({
+    ...option,
+    label: getModelProviderLabel(language, option.value),
+  }));
+
   return (
     <div className="h-full overflow-y-auto px-6 py-6">
       <div className="mx-auto max-w-[920px] space-y-5 pb-7">
-      <SectionBlock
-        title="下载设置"
-      >
-        <div className="grid gap-4">
-          <label className="space-y-2">
-            <span className={fieldLabelClassName}>下载目录</span>
-            <div className="flex items-center gap-3">
-              <input
-                value={config.downloadDir}
-                onChange={(event) =>
-                  updateConfig({ downloadDir: event.target.value })
-                }
-                className={`${inputClassName} flex-1`}
-              />
-              <button
-                type="button"
-                disabled={isPickingDownloadDir}
-                onClick={async () => {
-                  setIsPickingDownloadDir(true);
-                  try {
-                    const selectedPath = await selectDownloadDirectory(config.downloadDir);
-                    if (selectedPath) {
-                      updateConfig({ downloadDir: selectedPath });
-                    }
-                  } finally {
-                    setIsPickingDownloadDir(false);
+        <SectionBlock title={t("settings.downloadSectionTitle")}>
+          <div className="grid gap-4">
+            <label className="space-y-2">
+              <span className={fieldLabelClassName}>{t("settings.downloadDir")}</span>
+              <div className="flex items-center gap-3">
+                <input
+                  value={config.downloadDir}
+                  onChange={(event) =>
+                    updateConfig({ downloadDir: event.target.value })
                   }
-                }}
-                className="inline-flex h-[50px] shrink-0 items-center gap-2 rounded-2xl border border-black/[0.08] px-4 text-sm text-zinc-600 transition hover:border-black/[0.14] hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:text-zinc-300 dark:hover:border-white/20 dark:hover:text-zinc-100"
-              >
-                <FolderOpen className="h-4 w-4" />
-                {isPickingDownloadDir ? "选择中" : "浏览"}
-              </button>
-            </div>
-          </label>
-        </div>
-      </SectionBlock>
-
-      <SectionBlock
-        title="MCP 服务"
-      >
-        <div className="space-y-5">
-          {config.remoteMcpServers.map((server) => (
-            <div
-              key={server.id}
-              className="space-y-2.5 pb-2"
-            >
-              {server.isEmbedded ? (
-                <div className="space-y-2.5">
-                  <div className="flex items-center justify-between gap-4">
-                    <div
-                      className={`flex items-center gap-2 text-sm ${
-                        testState[server.id]?.ok
-                          ? "text-emerald-600 dark:text-emerald-400"
-                          : "text-zinc-900 dark:text-zinc-100"
-                      }`}
-                    >
-                      {testState[server.id]?.ok ? (
-                        <Check className="h-4 w-4 shrink-0" />
-                      ) : null}
-                      <span>{getEmbeddedMcpTokenLabel(server)}</span>
-                    </div>
-                    {getEmbeddedMcpTokenUrl(server.id) ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void openExternalUrl(getEmbeddedMcpTokenUrl(server.id) ?? "")
-                        }
-                        className={`${subtleButtonClassName} shrink-0`}
-                      >
-                        点我获取MCP Token
-                      </button>
-                    ) : null}
-                  </div>
-                  <div className="flex min-w-0 items-center gap-3">
-                    <input
-                      type="password"
-                      value={getMcpToken(server.headers)}
-                      onChange={(event) =>
-                        updateRemoteServer(server.id, (current) => ({
-                          ...current,
-                          headers: updateMcpTokenHeaders(current.headers, event.target.value),
-                        }))
+                  className={`${inputClassName} flex-1`}
+                />
+                <button
+                  type="button"
+                  disabled={isPickingDownloadDir}
+                  onClick={async () => {
+                    setIsPickingDownloadDir(true);
+                    try {
+                      const selectedPath = await selectDownloadDirectory(
+                        config.downloadDir,
+                        t("settings.downloadDir"),
+                      );
+                      if (selectedPath) {
+                        updateConfig({ downloadDir: selectedPath });
                       }
-                      placeholder="输入 MCP Token"
-                      className={`${inputClassName} min-w-0 flex-1`}
-                    />
-                    <button
-                      type="button"
-                      disabled={!canTestServer(server) || testState[server.id]?.loading}
-                      onClick={() => void handleTestServer(server)}
-                      className={`${inputButtonClassName} justify-center disabled:cursor-not-allowed disabled:opacity-40`}
-                    >
-                      {testState[server.id]?.loading ? "测试中" : "测试连接"}
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <>
-                  <div className="flex items-center justify-between gap-4">
-                    <p className="text-sm text-zinc-900 dark:text-zinc-100">
-                      {server.name || "未命名 MCP"}
-                    </p>
-                    <div className="flex items-center gap-3">
-                      <label className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
-                        <input
-                          type="checkbox"
-                          checked={server.enabled}
-                          onChange={(event) =>
-                            updateRemoteServer(server.id, (current) => ({
-                              ...current,
-                              enabled: event.target.checked,
-                            }))
-                          }
-                        />
-                        已启用
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateConfig({
-                            remoteMcpServers: config.remoteMcpServers.filter(
-                              (item) => item.id !== server.id,
-                            ),
-                          })
-                        }
-                        className={subtleButtonClassName}
+                    } finally {
+                      setIsPickingDownloadDir(false);
+                    }
+                  }}
+                  className="inline-flex h-[50px] shrink-0 items-center gap-2 rounded-2xl border border-black/[0.08] px-4 text-sm text-zinc-600 transition hover:border-black/[0.14] hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-40 dark:border-white/10 dark:text-zinc-300 dark:hover:border-white/20 dark:hover:text-zinc-100"
+                >
+                  <FolderOpen className="h-4 w-4" />
+                  {isPickingDownloadDir ? t("settings.browsing") : t("settings.browse")}
+                </button>
+              </div>
+            </label>
+          </div>
+        </SectionBlock>
+
+        <SectionBlock title={t("settings.mcpSectionTitle")}>
+          <div className="space-y-5">
+            {config.remoteMcpServers.map((server) => (
+              <div key={server.id} className="space-y-2.5 pb-2">
+                {server.isEmbedded ? (
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between gap-4">
+                      <div
+                        className={`flex items-center gap-2 text-sm ${
+                          testState[server.id]?.ok
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : "text-zinc-900 dark:text-zinc-100"
+                        }`}
                       >
-                        删除
-                      </button>
+                        {testState[server.id]?.ok ? (
+                          <Check className="h-4 w-4 shrink-0" />
+                        ) : null}
+                        <span>{getEmbeddedMcpTokenLabel(server, language)}</span>
+                      </div>
+                      {getEmbeddedMcpTokenUrl(server.id) ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void openExternalUrl(getEmbeddedMcpTokenUrl(server.id) ?? "")
+                          }
+                          className={`${subtleButtonClassName} shrink-0`}
+                        >
+                          {t("settings.getMcpToken")}
+                        </button>
+                      ) : null}
+                    </div>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <input
+                        type="password"
+                        value={getMcpToken(server.headers)}
+                        onChange={(event) =>
+                          updateRemoteServer(server.id, (current) => ({
+                            ...current,
+                            headers: updateMcpTokenHeaders(current.headers, event.target.value),
+                          }))
+                        }
+                        placeholder={t("settings.enterMcpToken")}
+                        className={`${inputClassName} min-w-0 flex-1`}
+                      />
                       <button
                         type="button"
                         disabled={!canTestServer(server) || testState[server.id]?.loading}
                         onClick={() => void handleTestServer(server)}
-                        className={subtleButtonClassName}
+                        className={`${inputButtonClassName} justify-center disabled:cursor-not-allowed disabled:opacity-40`}
                       >
-                        {testState[server.id]?.loading ? "测试中" : "测试连接"}
+                        {testState[server.id]?.loading
+                          ? t("settings.testing")
+                          : t("settings.testConnection")}
                       </button>
                     </div>
                   </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between gap-4">
+                      <p className="text-sm text-zinc-900 dark:text-zinc-100">
+                        {server.name || t("settings.serverUnnamed")}
+                      </p>
+                      <div className="flex items-center gap-3">
+                        <label className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                          <input
+                            type="checkbox"
+                            checked={server.enabled}
+                            onChange={(event) =>
+                              updateRemoteServer(server.id, (current) => ({
+                                ...current,
+                                enabled: event.target.checked,
+                              }))
+                            }
+                          />
+                          {t("settings.enabled")}
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateConfig({
+                              remoteMcpServers: config.remoteMcpServers.filter(
+                                (item) => item.id !== server.id,
+                              ),
+                            })
+                          }
+                          className={subtleButtonClassName}
+                        >
+                          {t("settings.delete")}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!canTestServer(server) || testState[server.id]?.loading}
+                          onClick={() => void handleTestServer(server)}
+                          className={subtleButtonClassName}
+                        >
+                          {testState[server.id]?.loading
+                            ? t("settings.testing")
+                            : t("settings.testConnection")}
+                        </button>
+                      </div>
+                    </div>
 
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <label className="space-y-2">
-                      <span className={fieldLabelClassName}>标识</span>
-                      <input
-                        value={server.id}
-                        onChange={(event) =>
-                          updateRemoteServer(server.id, (current) => ({
-                            ...current,
-                            id: event.target.value,
-                          }))
-                        }
-                        className={inputClassName}
-                      />
-                    </label>
-
-                    <label className="space-y-2">
-                      <span className={fieldLabelClassName}>名称</span>
-                      <input
-                        value={server.name}
-                        onChange={(event) =>
-                          updateRemoteServer(server.id, (current) => ({
-                            ...current,
-                            name: event.target.value,
-                          }))
-                        }
-                        className={inputClassName}
-                      />
-                    </label>
-
-                    <label className="space-y-2">
-                      <span className={fieldLabelClassName}>传输方式</span>
-                      <select
-                        value={server.transport}
-                        onChange={(event) =>
-                          updateRemoteServer(server.id, (current) => ({
-                            ...current,
-                            transport: event.target.value as RemoteMcpServer["transport"],
-                          }))
-                        }
-                        className={inputClassName}
-                      >
-                        {remoteMcpTransportOptions.map((option) => (
-                          <option
-                            key={option.value}
-                            value={option.value}
-                            className="bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100"
-                          >
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label className="space-y-2">
-                      <span className={fieldLabelClassName}>地址</span>
-                      <input
-                        value={server.url}
-                        onChange={(event) =>
-                          updateRemoteServer(server.id, (current) => ({
-                            ...current,
-                            url: event.target.value,
-                          }))
-                        }
-                        placeholder={
-                          server.transport === "sse"
-                            ? "https://example.com/mcp/sse"
-                            : "https://example.com/mcp/stream"
-                        }
-                        className={inputClassName}
-                      />
-                    </label>
-
-                    <label className="space-y-2 md:col-span-2">
-                      <span className={fieldLabelClassName}>请求头 JSON</span>
-                      <textarea
-                        key={`${server.id}-${headersToText(server.headers)}`}
-                        defaultValue={headersToText(server.headers)}
-                        onBlur={(event) => {
-                          try {
-                            const headers = parseHeaders(event.target.value);
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <label className="space-y-2">
+                        <span className={fieldLabelClassName}>{t("settings.identifier")}</span>
+                        <input
+                          value={server.id}
+                          onChange={(event) =>
                             updateRemoteServer(server.id, (current) => ({
                               ...current,
-                              headers,
-                            }));
-                          } catch {
-                            return;
+                              id: event.target.value,
+                            }))
                           }
-                        }}
-                        placeholder={'{\n  "Authorization": "Bearer ..."\n}'}
-                        rows={5}
-                        className={`${inputClassName} min-h-[120px] resize-none`}
-                      />
-                    </label>
-                  </div>
-                </>
-              )}
+                          className={inputClassName}
+                        />
+                      </label>
 
-              {testState[server.id]?.message && !testState[server.id]?.ok ? (
-                <p
-                  className={`text-xs ${
-                    testState[server.id]?.ok
-                      ? "text-emerald-600 dark:text-emerald-400"
-                      : "text-amber-600 dark:text-amber-400"
-                  }`}
-                >
-                  {testState[server.id]?.message}
-                </p>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      </SectionBlock>
+                      <label className="space-y-2">
+                        <span className={fieldLabelClassName}>{t("settings.name")}</span>
+                        <input
+                          value={server.name}
+                          onChange={(event) =>
+                            updateRemoteServer(server.id, (current) => ({
+                              ...current,
+                              name: event.target.value,
+                            }))
+                          }
+                          className={inputClassName}
+                        />
+                      </label>
 
-      <SectionBlock title="LLM模型">
-        <div className="grid gap-4 md:grid-cols-2">
-          <label className="space-y-2">
-            <span className={fieldLabelClassName}>
-              提供方
-            </span>
-            <select
-              value={config.modelProvider}
-              onChange={(event) => {
-                const nextProvider = event.target.value as ModelProvider;
-                const preset = modelProviderOptions.find(
-                  (option) => option.value === nextProvider,
-                );
-                clearModelTestState();
-                updateConfig({
-                  modelProvider: nextProvider,
-                  modelName: preset?.defaultModel ?? "",
-                });
-              }}
-              className={inputClassName}
-            >
-              {modelProviderOptions.map((option) => (
-                <option
-                  key={option.value}
-                  value={option.value}
-                  className="bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100"
-                >
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
+                      <label className="space-y-2">
+                        <span className={fieldLabelClassName}>{t("settings.transport")}</span>
+                        <select
+                          value={server.transport}
+                          onChange={(event) =>
+                            updateRemoteServer(server.id, (current) => ({
+                              ...current,
+                              transport: event.target.value as RemoteMcpServer["transport"],
+                            }))
+                          }
+                          className={inputClassName}
+                        >
+                          {(["streamable-http", "sse"] as const).map((transport) => (
+                            <option
+                              key={transport}
+                              value={transport}
+                              className="bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100"
+                            >
+                              {getRemoteTransportLabel(language, transport)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
 
-          <label className="space-y-2">
-            <span className={fieldLabelClassName}>
-              模型名称
-            </span>
-            <div className="space-y-2">
-              {config.modelProvider === "custom-openai" ? null : (
-                <select
-                  value={hasPresetModel ? config.modelName : "__custom__"}
-                  onChange={(event) => {
-                    if (event.target.value === "__custom__") {
-                      clearModelTestState();
-                      updateConfig({ modelName: "" });
-                      return;
-                    }
+                      <label className="space-y-2">
+                        <span className={fieldLabelClassName}>{t("settings.url")}</span>
+                        <input
+                          value={server.url}
+                          onChange={(event) =>
+                            updateRemoteServer(server.id, (current) => ({
+                              ...current,
+                              url: event.target.value,
+                            }))
+                          }
+                          placeholder={
+                            server.transport === "sse"
+                              ? "https://example.com/mcp/sse"
+                              : "https://example.com/mcp/stream"
+                          }
+                          className={inputClassName}
+                        />
+                      </label>
 
-                    clearModelTestState();
-                    updateConfig({ modelName: event.target.value });
-                  }}
-                  className={inputClassName}
-                >
-                  {modelOptions.map((option) => (
-                    <option
-                      key={option.value}
-                      value={option.value}
-                      className="bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100"
-                    >
-                      {option.label}
-                    </option>
-                  ))}
+                      <label className="space-y-2 md:col-span-2">
+                        <span className={fieldLabelClassName}>
+                          {t("settings.requestHeadersJson")}
+                        </span>
+                        <textarea
+                          key={`${server.id}-${headersToText(server.headers)}`}
+                          defaultValue={headersToText(server.headers)}
+                          onBlur={(event) => {
+                            try {
+                              const headers = parseHeaders(event.target.value);
+                              updateRemoteServer(server.id, (current) => ({
+                                ...current,
+                                headers,
+                              }));
+                            } catch {
+                              return;
+                            }
+                          }}
+                          placeholder={'{\n  "Authorization": "Bearer ..."\n}'}
+                          rows={5}
+                          className={`${inputClassName} min-h-[120px] resize-none`}
+                        />
+                      </label>
+                    </div>
+                  </>
+                )}
+
+                {testState[server.id]?.message && !testState[server.id]?.ok ? (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    {testState[server.id]?.message}
+                  </p>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </SectionBlock>
+
+        <SectionBlock title={t("settings.modelSectionTitle")}>
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="space-y-2">
+              <span className={fieldLabelClassName}>{t("settings.provider")}</span>
+              <select
+                value={config.modelProvider}
+                onChange={(event) => {
+                  const nextProvider = event.target.value as ModelProvider;
+                  const preset = modelProviderOptions.find(
+                    (option) => option.value === nextProvider,
+                  );
+                  clearModelTestState();
+                  updateConfig({
+                    modelProvider: nextProvider,
+                    modelName: preset?.defaultModel ?? "",
+                  });
+                }}
+                className={inputClassName}
+              >
+                {providerOptions.map((option) => (
                   <option
-                    value="__custom__"
+                    key={option.value}
+                    value={option.value}
                     className="bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100"
                   >
-                    手动输入其他模型
+                    {option.label}
                   </option>
-                </select>
-              )}
+                ))}
+              </select>
+            </label>
 
-              {isCustomModelInputVisible ? (
+            <label className="space-y-2">
+              <span className={fieldLabelClassName}>{t("settings.modelName")}</span>
+              <div className="space-y-2">
+                {config.modelProvider === "custom-openai" ? null : (
+                  <select
+                    value={hasPresetModel ? config.modelName : "__custom__"}
+                    onChange={(event) => {
+                      if (event.target.value === "__custom__") {
+                        clearModelTestState();
+                        updateConfig({ modelName: "" });
+                        return;
+                      }
+
+                      clearModelTestState();
+                      updateConfig({ modelName: event.target.value });
+                    }}
+                    className={inputClassName}
+                  >
+                    {modelOptions.map((option) => (
+                      <option
+                        key={option.value}
+                        value={option.value}
+                        className="bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100"
+                      >
+                        {option.label}
+                      </option>
+                    ))}
+                    <option
+                      value="__custom__"
+                      className="bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100"
+                    >
+                      {t("settings.customModel")}
+                    </option>
+                  </select>
+                )}
+
+                {isCustomModelInputVisible ? (
+                  <input
+                    value={config.modelName}
+                    onChange={(event) => {
+                      clearModelTestState();
+                      updateConfig({ modelName: event.target.value });
+                    }}
+                    placeholder={
+                      modelProviderOptions.find(
+                        (option) => option.value === config.modelProvider,
+                      )?.defaultModel ?? ""
+                    }
+                    className={inputClassName}
+                  />
+                ) : null}
+              </div>
+            </label>
+
+            <label className="space-y-2 md:col-span-2">
+              <div className="flex items-center gap-2">
+                <span
+                  className={`flex items-center gap-2 text-xs font-medium ${
+                    testState[modelTestStateKey]?.ok
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-zinc-500 dark:text-zinc-400"
+                  }`}
+                >
+                  {testState[modelTestStateKey]?.ok ? (
+                    <Check className="h-4 w-4 shrink-0" />
+                  ) : null}
+                  <span>{t("settings.apiKey")}</span>
+                </span>
+              </div>
+              <div className="flex min-w-0 items-center gap-3">
                 <input
-                  value={config.modelName}
+                  type="password"
+                  value={config.modelApiKey}
                   onChange={(event) => {
                     clearModelTestState();
-                    updateConfig({ modelName: event.target.value })
+                    updateConfig({ modelApiKey: event.target.value });
+                  }}
+                  placeholder="sk-..."
+                  className={`${inputClassName} min-w-0 flex-1`}
+                />
+                <button
+                  type="button"
+                  disabled={!canTestModel(config) || testState[modelTestStateKey]?.loading}
+                  onClick={() => void handleTestModel()}
+                  className={`${inputButtonClassName} justify-center disabled:cursor-not-allowed disabled:opacity-40`}
+                >
+                  {testState[modelTestStateKey]?.loading
+                    ? t("settings.testing")
+                    : t("settings.testConnection")}
+                </button>
+              </div>
+            </label>
+
+            {config.modelProvider === "custom-openai" ? (
+              <label className="space-y-2 md:col-span-2">
+                <span className={fieldLabelClassName}>{t("settings.baseUrl")}</span>
+                <input
+                  value={config.modelBaseUrl}
+                  onChange={(event) => {
+                    clearModelTestState();
+                    updateConfig({ modelBaseUrl: event.target.value });
                   }}
                   placeholder={
                     modelProviderOptions.find(
                       (option) => option.value === config.modelProvider,
-                    )?.defaultModel ?? ""
+                    )?.baseUrlPlaceholder ?? ""
                   }
                   className={inputClassName}
                 />
-              ) : null}
-            </div>
-          </label>
+              </label>
+            ) : null}
 
-          <label className="space-y-2 md:col-span-2">
-            <div className="flex items-center gap-2">
-              <span
-                className={`flex items-center gap-2 text-xs font-medium ${
-                  testState[modelTestStateKey]?.ok
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : "text-zinc-500 dark:text-zinc-400"
-                }`}
-              >
-                {testState[modelTestStateKey]?.ok ? (
-                  <Check className="h-4 w-4 shrink-0" />
-                ) : null}
-                <span>API 密钥</span>
-              </span>
-            </div>
-            <div className="flex min-w-0 items-center gap-3">
-              <input
-                type="password"
-                value={config.modelApiKey}
-                onChange={(event) => {
-                  clearModelTestState();
-                  updateConfig({ modelApiKey: event.target.value });
-                }}
-                placeholder="sk-..."
-                className={`${inputClassName} min-w-0 flex-1`}
-              />
-              <button
-                type="button"
-                disabled={!canTestModel(config) || testState[modelTestStateKey]?.loading}
-                onClick={() => void handleTestModel()}
-                className={`${inputButtonClassName} justify-center disabled:cursor-not-allowed disabled:opacity-40`}
-              >
-                {testState[modelTestStateKey]?.loading ? "测试中" : "测试连接"}
-              </button>
-            </div>
-          </label>
+            {testState[modelTestStateKey]?.message && !testState[modelTestStateKey]?.ok ? (
+              <p className="text-xs text-amber-600 dark:text-amber-400 md:col-span-2">
+                {testState[modelTestStateKey]?.message}
+              </p>
+            ) : null}
+          </div>
+        </SectionBlock>
 
-          {config.modelProvider === "custom-openai" ? (
-            <label className="space-y-2 md:col-span-2">
-              <span className={fieldLabelClassName}>
-                接口地址
-              </span>
-              <input
-                value={config.modelBaseUrl}
-                onChange={(event) => {
-                  clearModelTestState();
-                  updateConfig({ modelBaseUrl: event.target.value })
-                }}
-                placeholder={
-                  modelProviderOptions.find(
-                    (option) => option.value === config.modelProvider,
-                  )?.baseUrlPlaceholder ?? ""
-                }
-                className={inputClassName}
-              />
-            </label>
-          ) : null}
-
-          {testState[modelTestStateKey]?.message && !testState[modelTestStateKey]?.ok ? (
-            <p className="text-xs text-amber-600 dark:text-amber-400 md:col-span-2">
-              {testState[modelTestStateKey]?.message}
-            </p>
-          ) : null}
+        <div className="sticky bottom-0 flex justify-end pt-2">
+          <button
+            type="button"
+            disabled={!configDirty || configSaving}
+            onClick={() => void persistConfig()}
+            className="inline-flex h-11 items-center justify-center rounded-2xl bg-zinc-950 px-5 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-white/90 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-200 dark:disabled:bg-zinc-700 dark:disabled:text-zinc-300"
+          >
+            {t("settings.save")}
+          </button>
         </div>
-      </SectionBlock>
-
-      <div className="sticky bottom-0 flex justify-end pt-2">
-        <button
-          type="button"
-          disabled={!configDirty || configSaving}
-          onClick={() => void persistConfig()}
-          className="inline-flex h-11 items-center justify-center rounded-2xl bg-zinc-950 px-5 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-white/90 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-200 dark:disabled:bg-zinc-700 dark:disabled:text-zinc-300"
-        >
-          保存设置
-        </button>
-      </div>
       </div>
     </div>
   );

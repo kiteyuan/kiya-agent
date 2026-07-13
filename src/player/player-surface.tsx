@@ -2,6 +2,8 @@ import Artplayer from "artplayer";
 import { convertFileSrc, isTauri } from "@tauri-apps/api/core";
 import { useEffect, useMemo, useRef } from "react";
 
+import { useI18n } from "@/i18n";
+
 interface PlayerSurfaceProps {
   path: string;
 }
@@ -11,6 +13,7 @@ function isRemoteUrl(path: string) {
 }
 
 export function PlayerSurface({ path }: PlayerSurfaceProps) {
+  const { t } = useI18n();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const videoUrl = useMemo(() => {
     if (!path) {
@@ -57,7 +60,7 @@ export function PlayerSurface({ path }: PlayerSurfaceProps) {
     >
       {!videoUrl ? (
         <div className="flex h-full w-full items-center justify-center text-sm text-zinc-300">
-          当前预览仅在 Tauri 桌面环境中加载本地视频
+          {t("overlay.localVideoDesktopOnly")}
         </div>
       ) : null}
     </div>

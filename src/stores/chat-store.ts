@@ -1,5 +1,6 @@
 import { create } from "zustand";
 
+import { getIntlLocale, t } from "@/i18n";
 import {
   createChatConversation,
   deleteChatConversation,
@@ -31,13 +32,17 @@ interface ChatStore {
   sendMessage: () => Promise<void>;
 }
 
+function getCurrentLanguage() {
+  return useAppStore.getState().config.language;
+}
+
 function formatToolProgressMessage(message: ChatMessage) {
   const toolName = message.toolCall?.tool?.trim() || "MCP";
-  return `正在调用 ${toolName}...`;
+  return `${t(getCurrentLanguage(), "chat.toolCallingPrefix")}${toolName}...`;
 }
 
 function nowLabel() {
-  return new Intl.DateTimeFormat("zh-CN", {
+  return new Intl.DateTimeFormat(getIntlLocale(getCurrentLanguage()), {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
@@ -171,10 +176,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     }));
   },
   selectConversation: async (conversationId) => {
-    if (
-      get().isSending ||
-      get().currentConversationId === conversationId
-    ) {
+    if (get().isSending || get().currentConversationId === conversationId) {
       return;
     }
 
@@ -233,14 +235,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       await streamPiAgent(content, config, historyMessages, (event) => {
         if (event.stage === "text-delta" && event.delta) {
           const nextDeltaMessages = get().messages.map((message) =>
-              message.id === assistantMessageId
-                ? {
-                    ...message,
-                    content: message.toolCall ? event.delta : `${message.content}${event.delta}`,
-                    toolCall: undefined,
-                  }
-                : message,
-            );
+            message.id === assistantMessageId
+              ? {
+                  ...message,
+                  content: message.toolCall ? event.delta : `${message.content}${event.delta}`,
+                  toolCall: undefined,
+                }
+              : message,
+          );
 
           set(() => ({
             messages: nextDeltaMessages,
@@ -265,7 +267,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
           const toolMessage: ChatMessage = {
             id: crypto.randomUUID(),
             role: "tool",
-            content: `Pi Agent 调用了 ${event.toolCall.tool}`,
+            content: t(getCurrentLanguage(), "chat.toolInvoked", {
+              tool: event.toolCall.tool,
+            }),
             timestamp: nowLabel(),
             createdAt: nowIso(),
             toolCall: event.toolCall,
@@ -307,7 +311,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                   content:
                     event.assistantText?.trim() ||
                     message.content.trim() ||
-                    "Pi Agent 已收到请求，但本轮没有返回可显示文本。",
+                    t(getCurrentLanguage(), "chat.emptyReply"),
                   toolCall: undefined,
                   streaming: false,
                 }
@@ -336,7 +340,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
               ...message,
               content: normalizeDesktopError(
                 error,
-                "Pi Agent 当前不可用，请检查模型与认证配置。",
+                t(getCurrentLanguage(), "chat.agentUnavailable"),
               ),
               streaming: false,
             }

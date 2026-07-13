@@ -80,6 +80,7 @@ const previewRuntimeDefaults: RuntimeDefaults = {
 };
 
 export const defaultConfig: LocalConfig = {
+  language: "zh-CN",
   downloadDir: previewRuntimeDefaults.downloadDir,
   remoteMcpServers: embeddedRemoteMcpServers,
   localMcpPort: 17321,
@@ -449,6 +450,7 @@ export async function openExternalUrl(url: string): Promise<string> {
 
 export async function selectDownloadDirectory(
   currentPath?: string,
+  title?: string,
 ): Promise<string | null> {
   if (!isTauriRuntime()) {
     return null;
@@ -458,7 +460,7 @@ export async function selectDownloadDirectory(
     directory: true,
     multiple: false,
     defaultPath: currentPath?.trim() || undefined,
-    title: "选择下载目录",
+    title: title?.trim() || "选择下载目录",
   });
 
   if (typeof selected === "string") {

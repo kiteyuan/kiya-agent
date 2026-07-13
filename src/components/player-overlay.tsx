@@ -1,9 +1,11 @@
 import { X } from "lucide-react";
 
+import { useI18n } from "@/i18n";
 import { PlayerSurface } from "@/player/player-surface";
 import { usePlaylistStore } from "@/stores/playlist-store";
 
 export function PlayerOverlay() {
+  const { t } = useI18n();
   const activeItem = usePlaylistStore((state) => state.activeItem);
   const closeActiveItem = usePlaylistStore((state) => state.closeActiveItem);
 
@@ -17,7 +19,7 @@ export function PlayerOverlay() {
         type="button"
         onClick={closeActiveItem}
         className="absolute right-4 top-4 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white transition hover:bg-black/80"
-        aria-label="关闭播放器"
+        aria-label={t("overlay.closePlayer")}
       >
         <X className="h-4 w-4" />
       </button>

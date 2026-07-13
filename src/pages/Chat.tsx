@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef } from "react";
 import { Send } from "lucide-react";
 
+import { useI18n } from "@/i18n";
 import { MessageItem } from "@/components/message-item";
 import { useChatStore } from "@/stores/chat-store";
 import type { ChatMessage } from "@/types/app";
@@ -41,27 +42,6 @@ function shouldShowTimeDivider(
   return currentTime.getTime() - previousTime.getTime() >= TIME_DIVIDER_GAP_MS;
 }
 
-function formatDividerLabel(message: ChatMessage) {
-  const time = parseMessageTime(message);
-  if (!time) {
-    return message.timestamp;
-  }
-
-  const now = new Date();
-  const isSameDay =
-    time.getFullYear() === now.getFullYear() &&
-    time.getMonth() === now.getMonth() &&
-    time.getDate() === now.getDate();
-
-  return new Intl.DateTimeFormat("zh-CN", {
-    month: isSameDay ? undefined : "numeric",
-    day: isSameDay ? undefined : "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(time);
-}
-
 function isNearBottom(element: HTMLDivElement) {
   return (
     element.scrollHeight - element.scrollTop - element.clientHeight <=
@@ -70,6 +50,7 @@ function isNearBottom(element: HTMLDivElement) {
 }
 
 export default function ChatPage() {
+  const { locale, t } = useI18n();
   const messages = useChatStore((state) => state.messages);
   const draft = useChatStore((state) => state.draft);
   const isSending = useChatStore((state) => state.isSending);
@@ -94,6 +75,27 @@ export default function ChatPage() {
       (message) => message.role === "user" || message.role === "assistant",
     ) &&
     lastUserMessage?.id !== undefined;
+
+  function formatDividerLabel(message: ChatMessage) {
+    const time = parseMessageTime(message);
+    if (!time) {
+      return message.timestamp;
+    }
+
+    const now = new Date();
+    const isSameDay =
+      time.getFullYear() === now.getFullYear() &&
+      time.getMonth() === now.getMonth() &&
+      time.getDate() === now.getDate();
+
+    return new Intl.DateTimeFormat(locale, {
+      month: isSameDay ? undefined : "numeric",
+      day: isSameDay ? undefined : "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(time);
+  }
 
   useLayoutEffect(() => {
     const scrollContainer = scrollContainerRef.current;
@@ -159,7 +161,7 @@ export default function ChatPage() {
             event.preventDefault();
             void sendMessage();
           }}
-          placeholder="想聊点什么？"
+          placeholder={t("chat.composerPlaceholder")}
           className="h-9 w-full bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-50"
         />
         <button
@@ -167,7 +169,7 @@ export default function ChatPage() {
           onClick={() => void sendMessage()}
           className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-950 text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-300"
           disabled={!draft.trim() || isSending}
-          aria-label={isSending ? "生成中" : "发送"}
+          aria-label={isSending ? t("chat.generating") : t("chat.send")}
         >
           <Send className="h-4 w-4" />
         </button>
@@ -185,10 +187,10 @@ export default function ChatPage() {
           >
             <div className="space-y-3">
               <h1 className="text-3xl font-semibold tracking-tight text-zinc-950 dark:text-zinc-50">
-                你好，我是 Kiya Agent
+                {t("chat.welcomeTitle")}
               </h1>
               <p className="text-sm leading-7 text-zinc-500 dark:text-zinc-400">
-                想找什么资源？可以直接让我帮你搜索资源、转存磁力、下载文件，或者在线播放视频。
+                {t("chat.welcomeDescription")}
               </p>
             </div>
             {composer}

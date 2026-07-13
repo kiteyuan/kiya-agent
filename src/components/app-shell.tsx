@@ -10,8 +10,9 @@ import {
 import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
-import { PlayerOverlay } from "@/components/player-overlay";
 import { ImageGalleryOverlay } from "@/components/image-gallery-overlay";
+import { PlayerOverlay } from "@/components/player-overlay";
+import { useI18n } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { openExternalUrl } from "@/services/desktop";
 import { useAppStore } from "@/stores/app-store";
@@ -19,33 +20,11 @@ import { useChatStore } from "@/stores/chat-store";
 import { useDownloadStore } from "@/stores/download-store";
 import { usePlaylistStore } from "@/stores/playlist-store";
 
-const navItems = [
-  {
-    to: "/app/downloads",
-    label: "下载记录",
-    icon: Download,
-  },
-  {
-    to: "/app/playlist",
-    label: "播放历史",
-    icon: ListVideo,
-  },
-  {
-    to: "/app/settings",
-    label: "设置",
-    icon: Settings2,
-  },
-  {
-    to: "/app/diagnostics",
-    label: "诊断日志",
-    icon: Activity,
-  },
-];
-
 export function AppShell() {
+  const { t } = useI18n();
   const bootstrapped = useAppStore((state) => state.bootstrapped);
-  const status = useAppStore((state) => state.status);
   const config = useAppStore((state) => state.config);
+  const updateConfig = useAppStore((state) => state.updateConfig);
   const conversations = useChatStore((state) => state.conversations);
   const currentConversationId = useChatStore((state) => state.currentConversationId);
   const createConversation = useChatStore((state) => state.createConversation);
@@ -74,6 +53,34 @@ export function AppShell() {
   const pendingDeleteConversation = conversations.find(
     (conversation) => conversation.id === pendingDeleteConversationId,
   );
+
+  const navItems = [
+    {
+      to: "/app/downloads",
+      label: t("nav.downloads"),
+      icon: Download,
+      unreadCount: downloadUnreadCount,
+    },
+    {
+      to: "/app/playlist",
+      label: t("nav.playlist"),
+      icon: ListVideo,
+      unreadCount: playlistUnreadCount,
+    },
+    {
+      to: "/app/settings",
+      label: t("nav.settings"),
+      icon: Settings2,
+      unreadCount: 0,
+    },
+    {
+      to: "/app/diagnostics",
+      label: t("nav.diagnostics"),
+      icon: Activity,
+      unreadCount: 0,
+    },
+  ];
+
   const magnetSearchMcpState = resolveRemoteMcpState(
     bootstrapped,
     config.remoteMcpServers,
@@ -129,7 +136,7 @@ export function AppShell() {
               type="button"
               onClick={() => void openExternalUrl("https://github.com/kiteyuan/kiya-agent")}
               className="flex h-10 w-10 items-center justify-center rounded-2xl bg-zinc-950 text-white transition hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-300"
-              aria-label="打开 Kiya Agent GitHub 仓库"
+              aria-label={t("app.openGithubRepo")}
             >
               <Github className="h-5 w-5" />
             </button>
@@ -138,7 +145,7 @@ export function AppShell() {
                 Kiya Agent
               </p>
               <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-                Pi Agent Desktop Workspace
+                {t("app.tagline")}
               </p>
             </div>
           </div>
@@ -167,55 +174,49 @@ export function AppShell() {
                     : "text-zinc-400 dark:text-zinc-500",
                 )}
               />
-              <span className="truncate">新聊天</span>
+              <span className="truncate">{t("app.newChat")}</span>
             </button>
 
             <nav className="space-y-0.5">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const unreadCount =
-                item.to === "/app/downloads"
-                  ? downloadUnreadCount
-                  : item.to === "/app/playlist"
-                    ? playlistUnreadCount
-                    : 0;
-              const unreadLabel = formatUnreadCount(unreadCount);
-              return (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  className={({ isActive }) =>
-                    cn(
-                      "flex items-start gap-3 rounded-2xl px-2 py-2 text-sm transition-colors duration-200",
-                      isActive
-                        ? "bg-black/[0.06] text-zinc-950 dark:bg-white/[0.08] dark:text-zinc-100"
-                        : "text-zinc-500 hover:bg-black/[0.04] hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-white/[0.04] dark:hover:text-zinc-100",
-                    )
-                  }
-                >
-                  {({ isActive }) => (
-                    <>
-                      <Icon
-                        className={cn(
-                          "mt-0.5 h-4 w-4 shrink-0",
-                          isActive
-                            ? "text-zinc-700 dark:text-zinc-200"
-                            : "text-zinc-400 dark:text-zinc-500",
-                        )}
-                      />
-                      <div className="min-w-0">
-                        <p className="truncate">{item.label}</p>
-                      </div>
-                      {unreadLabel ? (
-                        <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-zinc-950 px-1.5 text-[11px] font-medium leading-none text-white dark:bg-zinc-100 dark:text-zinc-950">
-                          {unreadLabel}
-                        </span>
-                      ) : null}
-                    </>
-                  )}
-                </NavLink>
-              );
-            })}
+              {navItems.map((item) => {
+                const Icon = item.icon;
+                const unreadLabel = formatUnreadCount(item.unreadCount);
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    className={({ isActive }) =>
+                      cn(
+                        "flex items-start gap-3 rounded-2xl px-2 py-2 text-sm transition-colors duration-200",
+                        isActive
+                          ? "bg-black/[0.06] text-zinc-950 dark:bg-white/[0.08] dark:text-zinc-100"
+                          : "text-zinc-500 hover:bg-black/[0.04] hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-white/[0.04] dark:hover:text-zinc-100",
+                      )
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <Icon
+                          className={cn(
+                            "mt-0.5 h-4 w-4 shrink-0",
+                            isActive
+                              ? "text-zinc-700 dark:text-zinc-200"
+                              : "text-zinc-400 dark:text-zinc-500",
+                          )}
+                        />
+                        <div className="min-w-0">
+                          <p className="truncate">{item.label}</p>
+                        </div>
+                        {unreadLabel ? (
+                          <span className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-zinc-950 px-1.5 text-[11px] font-medium leading-none text-white dark:bg-zinc-100 dark:text-zinc-950">
+                            {unreadLabel}
+                          </span>
+                        ) : null}
+                      </>
+                    )}
+                  </NavLink>
+                );
+              })}
             </nav>
           </div>
 
@@ -223,13 +224,14 @@ export function AppShell() {
             <div className="flex h-full min-h-0 flex-col">
               <div className="px-2 pb-1.5 pt-1">
                 <p className="text-[11px] uppercase tracking-[0.22em] text-zinc-400">
-                  最近
+                  {t("app.recent")}
                 </p>
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto">
                 <div className="space-y-0.5">
                   {visibleConversations.map((conversation) => {
                     const isActive = conversation.id === currentConversationId;
+                    const fallbackTitle = t("app.newChat");
 
                     return (
                       <div
@@ -239,7 +241,7 @@ export function AppShell() {
                           isActive
                             ? "bg-black/[0.06] text-zinc-950 dark:bg-white/[0.08] dark:text-zinc-100"
                             : "text-zinc-600 hover:bg-black/[0.04] hover:text-zinc-950 dark:text-zinc-400 dark:hover:bg-white/[0.04] dark:hover:text-zinc-100",
-                          isSending && "opacity-60",
+                          isSending && !isActive && "opacity-60",
                         )}
                       >
                         <button
@@ -248,7 +250,7 @@ export function AppShell() {
                             navigate("/app/chat");
                             void selectConversation(conversation.id);
                           }}
-                          disabled={isSending}
+                          disabled={isSending && !isActive}
                           className="min-w-0 flex-1 rounded-[14px] px-1 py-1.5 text-left text-sm disabled:cursor-not-allowed"
                         >
                           <span
@@ -257,7 +259,7 @@ export function AppShell() {
                               isActive && "font-medium",
                             )}
                           >
-                            {conversation.title || "新会话"}
+                            {conversation.title || fallbackTitle}
                           </span>
                         </button>
                         {!isActive ? (
@@ -269,7 +271,7 @@ export function AppShell() {
                               setPendingDeleteConversationId(conversation.id);
                             }}
                             className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-zinc-400 opacity-0 transition hover:bg-black/[0.05] hover:text-zinc-950 group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-0 dark:text-zinc-500 dark:hover:bg-white/[0.06] dark:hover:text-zinc-100"
-                            aria-label={`删除会话 ${conversation.title || "新会话"}`}
+                            aria-label={`${t("settings.delete")} ${conversation.title || fallbackTitle}`}
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
@@ -286,12 +288,43 @@ export function AppShell() {
 
           <div className="mt-3 border-t border-black/[0.06] px-3 pt-3 dark:border-white/10">
             <div className="space-y-2 text-[11px] text-zinc-500 dark:text-zinc-400">
-              <SidebarServiceState label="纸鸢搜索 MCP" state={magnetSearchMcpState} />
-              <SidebarServiceState label="纸鸢下载 MCP" state={magnetDownloadMcpState} />
-              <SidebarServiceState label="LLM 模型" state={llmModelState} />
+              <SidebarServiceState
+                label={t("app.service.magnetSearch")}
+                state={magnetSearchMcpState}
+              />
+              <SidebarServiceState
+                label={t("app.service.magnetDownload")}
+                state={magnetDownloadMcpState}
+              />
+              <SidebarServiceState
+                label={t("app.service.llmModel")}
+                state={llmModelState}
+              />
+              <div className="flex items-center justify-between gap-3 pt-1">
+                <span className="truncate">{t("settings.interfaceLanguage")}</span>
+                <div className="inline-flex items-center gap-1 rounded-full bg-black/[0.04] p-0.5 dark:bg-white/[0.06]">
+                  {(["zh-CN", "en"] as const).map((option) => {
+                    const isActive = config.language === option;
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => updateConfig({ language: option })}
+                        className={cn(
+                          "rounded-full px-2.5 py-1 text-[11px] transition",
+                          isActive
+                            ? "bg-zinc-950 text-white dark:bg-zinc-100 dark:text-zinc-950"
+                            : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100",
+                        )}
+                      >
+                        {option === "zh-CN" ? "中文" : "English"}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
-
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
@@ -300,13 +333,14 @@ export function AppShell() {
           </main>
         </div>
       </div>
+
       {pendingDeleteConversation ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 px-4 backdrop-blur-sm dark:bg-black/40">
           <div className="w-full max-w-sm rounded-3xl bg-white p-5 text-zinc-950 shadow-[0_12px_40px_rgba(0,0,0,0.12)] dark:bg-zinc-900 dark:text-zinc-100">
             <div className="space-y-2">
-              <p className="text-sm font-medium">删除这条对话？</p>
+              <p className="text-sm font-medium">{t("app.deleteConversationTitle")}</p>
               <p className="truncate text-xs text-zinc-400 dark:text-zinc-500">
-                {pendingDeleteConversation.title || "新会话"}
+                {pendingDeleteConversation.title || t("app.newChat")}
               </p>
             </div>
             <div className="mt-5 flex justify-end gap-2">
@@ -316,7 +350,7 @@ export function AppShell() {
                 onClick={() => setPendingDeleteConversationId(null)}
                 className="inline-flex h-10 items-center justify-center rounded-2xl px-4 text-sm text-zinc-500 transition hover:bg-black/[0.04] hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-40 dark:text-zinc-400 dark:hover:bg-white/[0.06] dark:hover:text-zinc-100"
               >
-                取消
+                {t("app.cancel")}
               </button>
               <button
                 type="button"
@@ -324,12 +358,13 @@ export function AppShell() {
                 onClick={() => void handleConfirmDeleteConversation()}
                 className="inline-flex h-10 items-center justify-center rounded-2xl bg-zinc-950 px-4 text-sm text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-200"
               >
-                确认删除
+                {t("app.confirmDelete")}
               </button>
             </div>
           </div>
         </div>
       ) : null}
+
       <ImageGalleryOverlay />
       <PlayerOverlay />
     </div>
@@ -394,10 +429,7 @@ function resolveLlmModelState(
     return "error" as const;
   }
 
-  if (
-    config.modelProvider === "custom-openai" &&
-    !config.modelBaseUrl.trim()
-  ) {
+  if (config.modelProvider === "custom-openai" && !config.modelBaseUrl.trim()) {
     return "error" as const;
   }
 
@@ -411,6 +443,7 @@ function SidebarServiceState({
   label: string;
   state: "starting" | "ready" | "error";
 }) {
+  const { t } = useI18n();
   const dotClassName =
     state === "ready"
       ? "bg-emerald-500"
@@ -418,15 +451,19 @@ function SidebarServiceState({
         ? "bg-amber-500"
         : "bg-zinc-400 dark:bg-zinc-500";
   const statusLabel =
-    state === "ready" ? "已连接" : state === "error" ? "未连接" : "连接中";
+    state === "ready"
+      ? t("app.status.connected")
+      : state === "error"
+        ? t("app.status.disconnected")
+        : t("app.status.connecting");
 
   return (
     <div className="flex items-center justify-between gap-3">
-      <div className="flex min-w-0 items-center gap-2">
-        <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dotClassName)} />
-        <span className="truncate">{label}</span>
-      </div>
-      <span className="shrink-0 text-zinc-400 dark:text-zinc-500">{statusLabel}</span>
+      <span className="truncate">{label}</span>
+      <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+        <span className={cn("h-1.5 w-1.5 rounded-full", dotClassName)} />
+        <span>{statusLabel}</span>
+      </span>
     </div>
   );
 }

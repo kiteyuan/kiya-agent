@@ -2,6 +2,7 @@ import { ChevronDown, LoaderCircle } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import { useI18n } from "@/i18n";
 import { cn } from "@/lib/utils";
 import type { ChatMessage } from "@/types/app";
 
@@ -10,12 +11,13 @@ interface MessageItemProps {
 }
 
 export function MessageItem({ message }: MessageItemProps) {
+  const { t } = useI18n();
   const isUser = message.role === "user";
   const isTool = message.role === "tool";
   const isToolProgress =
     message.role === "assistant" &&
     Boolean(message.toolCall) &&
-    message.content.trim().startsWith("正在调用 ");
+    message.streaming !== false;
 
   if (isTool && message.toolCall) {
     return (
@@ -54,7 +56,7 @@ export function MessageItem({ message }: MessageItemProps) {
     >
       {isUser ? (
         <p className="whitespace-pre-wrap break-words text-sm leading-7 text-white dark:text-zinc-950">
-          {message.content || (message.streaming ? "正在生成..." : "")}
+          {message.content || (message.streaming ? t("chat.generating") : "")}
         </p>
       ) : isToolProgress ? (
         <div className="flex items-center gap-2 text-sm leading-7 text-zinc-900 dark:text-zinc-100">
@@ -62,9 +64,9 @@ export function MessageItem({ message }: MessageItemProps) {
           <LoaderCircle className="h-4 w-4 shrink-0 animate-spin text-zinc-500 dark:text-zinc-400" />
         </div>
       ) : (
-        <div className="prose prose-zinc max-w-none break-words text-sm leading-7 prose-headings:mb-3 prose-headings:mt-6 prose-headings:font-semibold prose-p:my-3 prose-ul:my-3 prose-ol:my-3 prose-li:my-1 prose-blockquote:text-zinc-600 prose-pre:rounded-2xl prose-pre:border prose-pre:border-black/[0.06] prose-pre:bg-black/[0.03] prose-code:rounded prose-code:bg-black/[0.04] prose-code:px-1 prose-code:py-0.5 prose-code:before:content-none prose-code:after:content-none dark:prose-invert dark:prose-blockquote:text-zinc-300 dark:prose-pre:border-white/10 dark:prose-pre:bg-white/[0.04] dark:prose-code:bg-white/[0.08]">
+        <div className="prose prose-zinc max-w-none break-words text-sm leading-7 prose-headings:mb-3 prose-headings:mt-6 prose-headings:font-semibold prose-p:my-3 prose-ul:my-3 prose-ol:my-3 prose-li:my-1 prose-blockquote:text-zinc-600 prose-pre:rounded-2xl prose-pre:border prose-pre:border-black/[0.06] prose-pre:bg-black/[0.03] prose-pre:text-zinc-800 prose-pre:[&_code]:bg-transparent prose-pre:[&_code]:p-0 prose-pre:[&_code]:text-inherit prose-code:rounded prose-code:bg-black/[0.04] prose-code:px-1 prose-code:py-0.5 prose-code:before:content-none prose-code:after:content-none dark:prose-invert dark:prose-blockquote:text-zinc-300 dark:prose-pre:border-white/10 dark:prose-pre:bg-white/[0.04] dark:prose-pre:text-zinc-100 dark:prose-code:bg-white/[0.08]">
           <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {message.content || (message.streaming ? "正在生成..." : "")}
+            {message.content || (message.streaming ? t("chat.generating") : "")}
           </ReactMarkdown>
         </div>
       )}

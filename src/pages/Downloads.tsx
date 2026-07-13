@@ -1,24 +1,9 @@
 import { useEffect, useState } from "react";
 import { FolderOpen, Pause, Play, RotateCcw, Trash2 } from "lucide-react";
 
+import { getIntlLocale, useI18n } from "@/i18n";
 import { useDownloadStore } from "@/stores/download-store";
 import type { DownloadTask } from "@/types/app";
-
-function statusLabel(status: string) {
-  if (status === "completed") {
-    return "已完成";
-  }
-  if (status === "downloading") {
-    return "下载中";
-  }
-  if (status === "paused") {
-    return "已暂停";
-  }
-  if (status === "failed") {
-    return "失败";
-  }
-  return "排队中";
-}
 
 function formatBytes(bytes?: number) {
   if (!bytes || bytes <= 0) {
@@ -36,39 +21,6 @@ function formatBytes(bytes?: number) {
 
   const digits = value >= 100 || unitIndex === 0 ? 0 : value >= 10 ? 1 : 2;
   return `${value.toFixed(digits)} ${units[unitIndex]}`;
-}
-
-function formatTaskMeta(task: DownloadTask) {
-  if (!task.createdAtMs) {
-    return formatBytes(task.totalBytes);
-  }
-
-  const time = new Intl.DateTimeFormat("zh-CN", {
-    year: "numeric",
-    month: "numeric",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(task.createdAtMs);
-
-  return `${time} · ${formatBytes(task.totalBytes)}`;
-}
-
-function formatTaskSecondaryLine(task: DownloadTask) {
-  const parts = [formatTaskMeta(task), statusLabel(task.status)];
-  const etaLabel = getEtaLabel(task);
-
-  if (task.status === "downloading" || task.status === "queued") {
-    parts.push(task.speed);
-    if (etaLabel) {
-      parts.push(etaLabel);
-    }
-  } else if (task.status === "paused") {
-    parts.push("已暂停");
-  }
-
-  return parts.join(" · ");
 }
 
 function parseSpeedToBytesPerSecond(speed: string) {
@@ -94,45 +46,8 @@ function parseSpeedToBytesPerSecond(speed: string) {
   return value * unitMap[unit];
 }
 
-function formatRemainingTime(totalSeconds: number) {
-  if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) {
-    return "预计 0秒";
-  }
-
-  const seconds = Math.ceil(totalSeconds);
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const remainSeconds = seconds % 60;
-
-  if (hours > 0) {
-    return `预计 ${hours}小时${minutes}分`;
-  }
-  if (minutes > 0) {
-    return `预计 ${minutes}分${remainSeconds}秒`;
-  }
-  return `预计 ${remainSeconds}秒`;
-}
-
-function getEtaLabel(task: DownloadTask) {
-  if ((task.status !== "downloading" && task.status !== "queued") || !task.totalBytes) {
-    return null;
-  }
-
-  const speedBytes = parseSpeedToBytesPerSecond(task.speed);
-  if (!speedBytes) {
-    return null;
-  }
-
-  const progress = Math.min(Math.max(task.progress, 0), 100);
-  const remainingBytes = task.totalBytes * (1 - progress / 100);
-  if (remainingBytes <= 0) {
-    return "预计 0秒";
-  }
-
-  return formatRemainingTime(remainingBytes / speedBytes);
-}
-
 export default function DownloadsPage() {
+  const { language, t } = useI18n();
   const hydrated = useDownloadStore((state) => state.hydrated);
   const tasks = useDownloadStore((state) => state.tasks);
   const refreshTasks = useDownloadStore((state) => state.refreshTasks);
@@ -144,6 +59,108 @@ export default function DownloadsPage() {
   const removeTask = useDownloadStore((state) => state.removeTask);
   const [isConfirmingClear, setIsConfirmingClear] = useState(false);
   const [isClearingHistory, setIsClearingHistory] = useState(false);
+
+  function statusLabel(status: string) {
+    if (status === "completed") {
+      return t("downloads.status.completed");
+    }
+    if (status === "downloading") {
+      return t("downloads.status.downloading");
+    }
+    if (status === "paused") {
+      return t("downloads.status.paused");
+    }
+    if (status === "failed") {
+      return t("downloads.status.failed");
+    }
+    return t("downloads.status.queued");
+  }
+
+  function formatRemainingTime(totalSeconds: number) {
+    if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) {
+      return t("downloads.eta", { value: t("downloads.etaSeconds", { seconds: 0 }) });
+    }
+
+    const seconds = Math.ceil(totalSeconds);
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const remainSeconds = seconds % 60;
+
+    if (hours > 0) {
+      return t("downloads.eta", {
+        value: t("downloads.etaHoursMinutes", { hours, minutes }),
+      });
+    }
+    if (minutes > 0) {
+      return t("downloads.eta", {
+        value: t("downloads.etaMinutesSeconds", {
+          minutes,
+          seconds: remainSeconds,
+        }),
+      });
+    }
+    return t("downloads.eta", {
+      value: t("downloads.etaSeconds", { seconds: remainSeconds }),
+    });
+  }
+
+  function getEtaLabel(task: DownloadTask) {
+    if ((task.status !== "downloading" && task.status !== "queued") || !task.totalBytes) {
+      return null;
+    }
+
+    const speedBytes = parseSpeedToBytesPerSecond(task.speed);
+    if (!speedBytes) {
+      return null;
+    }
+
+    const progress = Math.min(Math.max(task.progress, 0), 100);
+    const remainingBytes = task.totalBytes * (1 - progress / 100);
+    if (remainingBytes <= 0) {
+      return t("downloads.eta", {
+        value: t("downloads.etaSeconds", { seconds: 0 }),
+      });
+    }
+
+    return formatRemainingTime(remainingBytes / speedBytes);
+  }
+
+  function formatTaskMeta(task: DownloadTask) {
+    if (!task.createdAtMs) {
+      return formatBytes(task.totalBytes);
+    }
+
+    const time = new Intl.DateTimeFormat(getIntlLocale(language), {
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(task.createdAtMs);
+
+    return `${time} · ${formatBytes(task.totalBytes)}`;
+  }
+
+  function formatSpeed(task: DownloadTask) {
+    return task.speed === "等待 aria2" ? t("downloads.waitingAria2") : task.speed;
+  }
+
+  function formatTaskSecondaryLine(task: DownloadTask) {
+    const parts = [formatTaskMeta(task), statusLabel(task.status)];
+    const etaLabel = getEtaLabel(task);
+
+    if (task.status === "downloading" || task.status === "queued") {
+      parts.push(formatSpeed(task));
+      if (etaLabel) {
+        parts.push(etaLabel);
+      }
+    } else if (task.status === "paused") {
+      parts.push(t("downloads.paused"));
+    }
+
+    return parts.join(" · ");
+  }
 
   useEffect(() => {
     if (!hydrated) {
@@ -178,87 +195,85 @@ export default function DownloadsPage() {
     <div className="relative flex h-full min-h-0 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5 pb-24">
         <div className="space-y-4">
-          {tasks.map((task) => {
-            return (
-              <div
-                key={task.id}
-                className="rounded-3xl bg-white px-4 py-4 dark:bg-zinc-900/80"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                      {task.name}
-                    </p>
-                    <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-                      {formatTaskSecondaryLine(task)}
-                    </p>
-                    {task.status === "downloading" ||
-                    task.status === "queued" ||
-                    task.status === "paused" ? (
-                      <div className="pt-1">
-                        <div className="h-[3px] w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
-                          <div
-                            className="h-full rounded-full bg-zinc-950 transition-all dark:bg-zinc-100"
-                            style={{ width: `${task.progress}%` }}
-                          />
-                        </div>
+          {tasks.map((task) => (
+            <div
+              key={task.id}
+              className="rounded-3xl bg-white px-4 py-4 dark:bg-zinc-900/80"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0 flex-1 space-y-1">
+                  <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                    {task.name}
+                  </p>
+                  <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+                    {formatTaskSecondaryLine(task)}
+                  </p>
+                  {task.status === "downloading" ||
+                  task.status === "queued" ||
+                  task.status === "paused" ? (
+                    <div className="pt-1">
+                      <div className="h-[3px] w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+                        <div
+                          className="h-full rounded-full bg-zinc-950 transition-all dark:bg-zinc-100"
+                          style={{ width: `${task.progress}%` }}
+                        />
                       </div>
-                    ) : null}
-                  </div>
-                  <div className="flex w-36 shrink-0 items-center justify-end gap-3">
-                    {task.status === "downloading" && task.aria2Gid ? (
-                      <button
-                        type="button"
-                        onClick={() => void pauseTask(task.id)}
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/[0.04] text-zinc-500 transition hover:bg-black/[0.08] hover:text-zinc-950 dark:bg-white/[0.05] dark:text-zinc-300 dark:hover:bg-white/[0.08] dark:hover:text-zinc-100"
-                        aria-label={`暂停 ${task.name}`}
-                      >
-                        <Pause className="h-4 w-4" />
-                      </button>
-                    ) : null}
-                    {(task.status === "paused" || task.status === "queued") && task.aria2Gid ? (
-                      <button
-                        type="button"
-                        onClick={() => void resumeTask(task.id)}
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-zinc-950 text-white transition hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-300"
-                        aria-label={`开始 ${task.name}`}
-                      >
-                        <Play className="h-4 w-4 fill-current" />
-                      </button>
-                    ) : null}
-                    {task.status === "completed" ? (
-                      <button
-                        type="button"
-                        onClick={() => void openDownloadFolder(task)}
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/[0.04] text-zinc-500 transition hover:bg-black/[0.08] hover:text-zinc-950 dark:bg-white/[0.05] dark:text-zinc-300 dark:hover:bg-white/[0.08] dark:hover:text-zinc-100"
-                        aria-label={`打开 ${task.name} 所在目录`}
-                      >
-                        <FolderOpen className="h-4 w-4" />
-                      </button>
-                    ) : null}
-                    {task.status === "failed" && task.downloadUrl ? (
-                      <button
-                        type="button"
-                        onClick={() => void retryTask(task.id)}
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-zinc-950 text-white transition hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-300"
-                        aria-label={`重试 ${task.name}`}
-                      >
-                        <RotateCcw className="h-4 w-4" />
-                      </button>
-                    ) : null}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="flex w-36 shrink-0 items-center justify-end gap-3">
+                  {task.status === "downloading" && task.aria2Gid ? (
                     <button
                       type="button"
-                      onClick={() => void removeTask(task.id)}
+                      onClick={() => void pauseTask(task.id)}
                       className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/[0.04] text-zinc-500 transition hover:bg-black/[0.08] hover:text-zinc-950 dark:bg-white/[0.05] dark:text-zinc-300 dark:hover:bg-white/[0.08] dark:hover:text-zinc-100"
-                      aria-label={`删除 ${task.name}`}
+                      aria-label={t("downloads.pause", { name: task.name })}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Pause className="h-4 w-4" />
                     </button>
-                  </div>
+                  ) : null}
+                  {(task.status === "paused" || task.status === "queued") && task.aria2Gid ? (
+                    <button
+                      type="button"
+                      onClick={() => void resumeTask(task.id)}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-zinc-950 text-white transition hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-300"
+                      aria-label={t("downloads.resume", { name: task.name })}
+                    >
+                      <Play className="h-4 w-4 fill-current" />
+                    </button>
+                  ) : null}
+                  {task.status === "completed" ? (
+                    <button
+                      type="button"
+                      onClick={() => void openDownloadFolder(task)}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/[0.04] text-zinc-500 transition hover:bg-black/[0.08] hover:text-zinc-950 dark:bg-white/[0.05] dark:text-zinc-300 dark:hover:bg-white/[0.08] dark:hover:text-zinc-100"
+                      aria-label={t("downloads.openFolder", { name: task.name })}
+                    >
+                      <FolderOpen className="h-4 w-4" />
+                    </button>
+                  ) : null}
+                  {task.status === "failed" && task.downloadUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => void retryTask(task.id)}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-zinc-950 text-white transition hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-300"
+                      aria-label={t("downloads.retry", { name: task.name })}
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => void removeTask(task.id)}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-black/[0.04] text-zinc-500 transition hover:bg-black/[0.08] hover:text-zinc-950 dark:bg-white/[0.05] dark:text-zinc-300 dark:hover:bg-white/[0.08] dark:hover:text-zinc-100"
+                    aria-label={t("downloads.delete", { name: task.name })}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       </div>
 
@@ -267,7 +282,7 @@ export default function DownloadsPage() {
         disabled={tasks.length === 0}
         onClick={() => setIsConfirmingClear(true)}
         className="absolute bottom-6 right-6 inline-flex h-12 w-12 items-center justify-center rounded-full bg-zinc-950 text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-300"
-        aria-label="清空下载记录"
+        aria-label={t("downloads.clearHistory")}
       >
         <Trash2 className="h-4 w-4" />
       </button>
@@ -276,9 +291,9 @@ export default function DownloadsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 px-4 backdrop-blur-sm dark:bg-black/40">
           <div className="w-full max-w-sm rounded-3xl bg-white p-5 text-zinc-950 shadow-[0_12px_40px_rgba(0,0,0,0.12)] dark:bg-zinc-900 dark:text-zinc-100">
             <div className="space-y-2">
-              <p className="text-sm font-medium">清空下载记录？</p>
+              <p className="text-sm font-medium">{t("downloads.clearHistoryTitle")}</p>
               <p className="text-xs text-zinc-400 dark:text-zinc-500">
-                已下载完成的本地文件不会删除。
+                {t("downloads.clearHistoryDescription")}
               </p>
             </div>
             <div className="mt-5 flex justify-end gap-2">
@@ -288,7 +303,7 @@ export default function DownloadsPage() {
                 onClick={() => setIsConfirmingClear(false)}
                 className="inline-flex h-10 items-center justify-center rounded-full bg-black/[0.04] px-4 text-sm text-zinc-600 transition hover:bg-black/[0.08] hover:text-zinc-950 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white/[0.05] dark:text-zinc-300 dark:hover:bg-white/[0.08] dark:hover:text-zinc-100"
               >
-                取消
+                {t("app.cancel")}
               </button>
               <button
                 type="button"
@@ -296,7 +311,7 @@ export default function DownloadsPage() {
                 onClick={() => void handleConfirmClearHistory()}
                 className="inline-flex h-10 items-center justify-center rounded-full bg-zinc-950 px-4 text-sm text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-zinc-300"
               >
-                {isClearingHistory ? "清空中" : "确认删除"}
+                {isClearingHistory ? t("downloads.clearing") : t("app.confirmDelete")}
               </button>
             </div>
           </div>

@@ -4,6 +4,8 @@ import {
   listPlaylistHistory,
   savePlaylistHistory,
 } from "@/services/desktop";
+import { getIntlLocale } from "@/i18n";
+import { useAppStore } from "@/stores/app-store";
 import type { PlaylistItem, ToolCallSummary } from "@/types/app";
 
 interface PlaylistStore {
@@ -22,7 +24,8 @@ interface PlaylistStore {
 }
 
 function nowLabel() {
-  return new Intl.DateTimeFormat("zh-CN", {
+  const language = useAppStore.getState().config.language;
+  return new Intl.DateTimeFormat(getIntlLocale(language), {
     year: "numeric",
     month: "numeric",
     day: "numeric",
@@ -47,15 +50,17 @@ function parseToolCallDetail(detail: string) {
 }
 
 function deriveTitle(source: string) {
+  const fallbackTitle =
+    useAppStore.getState().config.language === "en" ? "Untitled video" : "未命名视频";
   try {
     const parsed = new URL(source);
     const filename = parsed.pathname.split("/").pop();
     return filename && filename.trim()
       ? decodeURIComponent(filename)
-      : "未命名视频";
+      : fallbackTitle;
   } catch {
     const normalized = source.split(/[\\/]/).pop();
-    return normalized && normalized.trim() ? normalized : "未命名视频";
+    return normalized && normalized.trim() ? normalized : fallbackTitle;
   }
 }
 
@@ -84,7 +89,7 @@ function resolveItemTitle(currentTitle: string, source: string, nextTitle?: stri
   }
 
   const fallbackTitle = deriveTitle(source);
-  if (currentTitle === fallbackTitle || currentTitle === "未命名视频") {
+  if (currentTitle === fallbackTitle || currentTitle === "未命名视频" || currentTitle === "Untitled video") {
     return trimmedNextTitle;
   }
 

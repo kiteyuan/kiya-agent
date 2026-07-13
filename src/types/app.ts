@@ -13,6 +13,8 @@ export type ModelProvider =
   | "deepseek"
   | "custom-openai";
 
+export type AppLanguage = "zh-CN" | "en";
+
 export type RemoteMcpTransport = "streamable-http" | "sse";
 
 export interface RemoteMcpServer {
@@ -26,6 +28,7 @@ export interface RemoteMcpServer {
 }
 
 export interface LocalConfig {
+  language: AppLanguage;
   downloadDir: string;
   remoteMcpServers: RemoteMcpServer[];
   localMcpPort: number;
