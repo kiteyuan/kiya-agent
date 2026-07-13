@@ -3,6 +3,8 @@
 Kiya Agent is a desktop-first resource workflow application built for magnet search, save, download, and playback scenarios.
 It combines a Tauri desktop shell, a React frontend, bundled local runtime services, and Pi Agent orchestration so the app can coordinate MCP tools, file downloads, and media playback inside one workspace.
 
+<img width="2880" height="1658" alt="image" src="https://github.com/user-attachments/assets/6472d75a-8562-43ba-8751-306ed2b7a3c8" />
+
 ## Highlights
 
 - Desktop application built with `Tauri 2 + React + TypeScript`
