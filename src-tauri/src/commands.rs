@@ -219,8 +219,11 @@ pub async fn test_mcp_server(
 #[tauri::command]
 pub async fn test_model_connection(
     config: PiLaunchConfig,
+    pi_state: State<'_, SharedPiManager>,
+    app: AppHandle,
 ) -> Result<McpConnectionTestResult, String> {
     validate_model_connection_config(&config)?;
+    pi_state.ensure_started(&app, &config)?;
 
     let (url, headers) = build_model_test_request(&config)?;
     let client = Client::new();
@@ -491,6 +494,9 @@ fn validate_model_connection_config(config: &PiLaunchConfig) -> Result<(), Strin
         _ => return Err(format!("不支持的模型提供商: {}", config.model_provider)),
     }
 
+    if config.model_name.trim().is_empty() {
+        return Err("请先填写模型名称".into());
+    }
     if config.model_api_key.trim().is_empty() {
         return Err("请先填写 API 密钥".into());
     }

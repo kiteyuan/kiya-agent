@@ -5,6 +5,7 @@ import { SectionBlock } from "@/components/section-block";
 import {
   modelNameOptionsByProvider,
   modelProviderOptions,
+  normalizeDesktopError,
   openExternalUrl,
   remoteMcpTransportOptions,
   selectDownloadDirectory,
@@ -115,6 +116,10 @@ function getModelOptions(provider: ModelProvider) {
 }
 
 function canTestModel(config: LocalConfig) {
+  if (!config.modelName.trim()) {
+    return false;
+  }
+
   if (!config.modelApiKey.trim()) {
     return false;
   }
@@ -171,10 +176,7 @@ export default function SettingsPage() {
         [server.id]: {
           loading: false,
           ok: false,
-          message:
-            error instanceof Error
-              ? error.message
-              : "MCP 连接测试失败",
+          message: normalizeDesktopError(error, "MCP 连接测试失败"),
         },
       }));
     }
@@ -214,10 +216,7 @@ export default function SettingsPage() {
         [modelTestStateKey]: {
           loading: false,
           ok: false,
-          message:
-            error instanceof Error
-              ? error.message
-              : "模型连接测试失败",
+          message: normalizeDesktopError(error, "模型连接测试失败"),
         },
       }));
     }

@@ -10,6 +10,14 @@ use crate::models::{
 
 const DEFAULT_CONVERSATION_TITLE: &str = "新会话";
 
+fn chat_db_file_name() -> &'static str {
+    if cfg!(debug_assertions) {
+        "chat-history.dev.sqlite3"
+    } else {
+        "chat-history.sqlite3"
+    }
+}
+
 fn current_timestamp_ms() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -24,7 +32,7 @@ fn resolve_db_path(app: &AppHandle) -> Result<PathBuf, String> {
         .map_err(|error| format!("无法解析聊天记录目录: {error}"))?;
 
     fs::create_dir_all(&app_data_dir).map_err(|error| format!("无法创建聊天记录目录: {error}"))?;
-    Ok(app_data_dir.join("chat-history.sqlite3"))
+    Ok(app_data_dir.join(chat_db_file_name()))
 }
 
 fn open_connection(app: &AppHandle) -> Result<Connection, String> {

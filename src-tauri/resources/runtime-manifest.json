@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-07T09:33:59.043Z",
+  "generatedAt": "2026-07-13T18:07:20.054Z",
   "resourcesDir": "E:\\Projects\\kiya-agent\\src-tauri\\resources",
   "runtimeTarget": "windows-x64",
   "vendorSourceDir": "E:\\Projects\\kiya-agent\\vendor\\runtime\\windows-x64",
@@ -50,24 +50,6 @@
       "source": "E:\\Projects\\kiya-agent\\vendor\\runtime\\windows-x64\\npx.cmd",
       "destination": "E:\\Projects\\kiya-agent\\src-tauri\\resources\\npx.cmd",
       "required": false,
-      "exists": true
-    },
-    {
-      "source": "E:\\Projects\\kiya-agent\\node_modules",
-      "destination": "E:\\Projects\\kiya-agent\\src-tauri\\resources\\pi-runtime\\node_modules",
-      "required": false,
-      "exists": true
-    },
-    {
-      "source": "E:\\Projects\\kiya-agent\\package.json",
-      "destination": "E:\\Projects\\kiya-agent\\src-tauri\\resources\\pi-runtime\\package.json",
-      "required": true,
-      "exists": true
-    },
-    {
-      "source": "E:\\Projects\\kiya-agent\\package-lock.json",
-      "destination": "E:\\Projects\\kiya-agent\\src-tauri\\resources\\pi-runtime\\package-lock.json",
-      "required": true,
       "exists": true
     }
   ],

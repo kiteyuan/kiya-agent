@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -34,9 +35,100 @@ function ensureDir(target) {
   fs.mkdirSync(target, { recursive: true });
 }
 
+function sleepSync(ms) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    // Busy wait is acceptable here because this is a short-lived build script.
+  }
+}
+
+function normalizeForWindowsPathMatch(target) {
+  return target.replaceAll("/", "\\").toLowerCase();
+}
+
+function terminateProjectRuntimeProcesses() {
+  if (process.platform !== "win32") {
+    return;
+  }
+
+  const pathPrefix = normalizeForWindowsPathMatch(projectRoot);
+  const probe = spawnSync(
+    "powershell.exe",
+    [
+      "-NoProfile",
+      "-Command",
+      `
+$ErrorActionPreference = 'SilentlyContinue'
+$targets = @('kiya-agent', 'aria2', 'aria2c', 'node')
+$processes = Get-Process | Where-Object { $targets -contains $_.ProcessName.ToLowerInvariant() } | ForEach-Object {
+  try {
+    [PSCustomObject]@{
+      Id = $_.Id
+      Name = $_.ProcessName
+      Path = $_.Path
+    }
+  } catch {
+    $null
+  }
+} | Where-Object { $_ -and $_.Path }
+$processes | ConvertTo-Json -Compress
+      `,
+    ],
+    {
+      encoding: "utf8",
+    },
+  );
+
+  if (probe.status !== 0 || !probe.stdout.trim()) {
+    return;
+  }
+
+  const processes = JSON.parse(probe.stdout.trim());
+  const list = Array.isArray(processes) ? processes : [processes];
+  for (const processInfo of list) {
+    if (!processInfo?.Path) {
+      continue;
+    }
+
+    const executablePath = normalizeForWindowsPathMatch(processInfo.Path);
+    if (!executablePath.startsWith(pathPrefix)) {
+      continue;
+    }
+
+    const result = spawnSync(
+      "taskkill.exe",
+      ["/PID", String(processInfo.Id), "/T", "/F"],
+      { encoding: "utf8" },
+    );
+    if (result.status === 0) {
+      copies.push(
+        `[runtime] stopped ${processInfo.Name} (${processInfo.Id}) at ${processInfo.Path}`,
+      );
+    }
+  }
+}
+
 function resetDir(target) {
-  fs.rmSync(target, { recursive: true, force: true });
-  ensureDir(target);
+  for (let attempt = 1; attempt <= 8; attempt += 1) {
+    try {
+      fs.rmSync(target, { recursive: true, force: true });
+      ensureDir(target);
+      return;
+    } catch (error) {
+      const retryable =
+        error?.code === "EPERM" ||
+        error?.code === "EBUSY" ||
+        error?.code === "ENOTEMPTY";
+      if (!retryable || attempt === 8) {
+        throw error;
+      }
+      terminateProjectRuntimeProcesses();
+      copies.push(
+        `[runtime] retrying resource cleanup after ${error?.code ?? "unknown"} on ${error?.path ?? target} (attempt ${attempt})`,
+      );
+      sleepSync(300 * attempt);
+    }
+  }
 }
 
 function copyFileIfExists(source, destination, options = {}) {
@@ -140,6 +232,86 @@ function writeJson(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+function installRuntimeDependencies(runtimeDir) {
+  const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
+  const result = spawnSync(
+    npmCommand,
+    ["install", "--omit=dev", "--no-audit", "--no-fund"],
+    {
+      cwd: runtimeDir,
+      encoding: "utf8",
+      shell: process.platform === "win32",
+      env: {
+        ...process.env,
+        NODE_ENV: "production",
+      },
+    },
+  );
+
+  if (result.status === 0) {
+    copies.push(`[runtime] installed production dependencies in ${runtimeDir}`);
+    return;
+  }
+
+  const details = [result.stdout, result.stderr]
+    .filter(Boolean)
+    .join("\n")
+    .trim();
+  throw new Error(
+    `failed to install runtime dependencies in ${runtimeDir}${details ? `: ${details}` : ""}`,
+  );
+}
+
+function stripRuntimeArtifacts(targetDir) {
+  const removableDirectories = new Set([
+    ".github",
+    ".vscode",
+    "test",
+    "tests",
+    "__tests__",
+    "__mocks__",
+    "example",
+    "examples",
+  ]);
+  const removableSuffixes = [
+    ".d.ts",
+    ".d.cts",
+    ".d.mts",
+    ".d.ts.map",
+    ".d.cts.map",
+    ".d.mts.map",
+    ".map",
+    ".md",
+    ".markdown",
+    ".tsbuildinfo",
+  ];
+
+  function walk(currentDir) {
+    for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
+      const fullPath = path.join(currentDir, entry.name);
+
+      if (entry.isDirectory()) {
+        if (removableDirectories.has(entry.name.toLowerCase())) {
+          fs.rmSync(fullPath, { recursive: true, force: true });
+          continue;
+        }
+
+        walk(fullPath);
+        continue;
+      }
+
+      const lowerName = entry.name.toLowerCase();
+      if (removableSuffixes.some((suffix) => lowerName.endsWith(suffix))) {
+        fs.rmSync(fullPath, { force: true });
+      }
+    }
+  }
+
+  walk(targetDir);
+  copies.push(`[runtime] stripped non-runtime artifacts in ${targetDir}`);
+}
+
+terminateProjectRuntimeProcesses();
 resetDir(resourcesDir);
 
 copyFileIfExists(
@@ -206,21 +378,24 @@ copyFirstDirectory(
 const rootPackageJson = readJson(path.join(projectRoot, "package.json"));
 const piVersion =
   rootPackageJson.dependencies?.["@earendil-works/pi-coding-agent"] ?? null;
+if (!piVersion) {
+  throw new Error("missing @earendil-works/pi-coding-agent dependency in package.json");
+}
 
 const piRuntimeDir = path.join(resourcesDir, "pi-runtime");
 ensureDir(piRuntimeDir);
 
-copyDirectory(path.join(projectRoot, "node_modules"), path.join(piRuntimeDir, "node_modules"));
-copyFileIfExists(
-  path.join(projectRoot, "package.json"),
-  path.join(piRuntimeDir, "package.json"),
-  { required: true },
-);
-copyFileIfExists(
-  path.join(projectRoot, "package-lock.json"),
-  path.join(piRuntimeDir, "package-lock.json"),
-  { required: true },
-);
+writeJson(path.join(piRuntimeDir, "package.json"), {
+  name: "kiya-agent-pi-runtime",
+  private: true,
+  version: "0.0.0",
+  dependencies: {
+    "@earendil-works/pi-coding-agent": piVersion,
+    "pi-mcp-adapter": "^2.11.0",
+  },
+});
+installRuntimeDependencies(piRuntimeDir);
+stripRuntimeArtifacts(path.join(piRuntimeDir, "node_modules"));
 
 writeJson(path.join(resourcesDir, "runtime-manifest.json"), {
   ...manifest,

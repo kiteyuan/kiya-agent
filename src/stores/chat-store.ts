@@ -6,6 +6,7 @@ import {
   getInitialMessages,
   listChatConversations,
   loadChatMessages,
+  normalizeDesktopError,
   saveChatMessages,
   streamPiAgent,
 } from "@/services/desktop";
@@ -333,10 +334,10 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         message.id === assistantMessageId
           ? {
               ...message,
-              content:
-                error instanceof Error
-                  ? error.message
-                  : "Pi Agent 当前不可用，请检查模型与认证配置。",
+              content: normalizeDesktopError(
+                error,
+                "Pi Agent 当前不可用，请检查模型与认证配置。",
+              ),
               streaming: false,
             }
           : message,

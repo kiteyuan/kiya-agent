@@ -12,6 +12,12 @@ use std::{
 use tauri::{AppHandle, Manager};
 use serde_json::json;
 
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
+
 #[derive(Clone)]
 pub struct ServiceManager {
     aria2_state: Arc<Mutex<String>>,
@@ -69,7 +75,9 @@ impl ServiceManager {
                 "[bootstrap] starting packaged aria2 from {}",
                 program.display()
             ));
-            let child = Command::new(program)
+            let mut command = Command::new(program);
+            configure_background_command(&mut command);
+            let child = command
                 .args([
                     "--enable-rpc",
                     "--rpc-listen-all=false",
@@ -91,7 +99,9 @@ impl ServiceManager {
                 paths.runtime_target,
                 paths.mock_aria2_script.display()
             ));
-            let child = Command::new(&paths.node_program)
+            let mut command = Command::new(&paths.node_program);
+            configure_background_command(&mut command);
+            let child = command
                 .arg(&paths.mock_aria2_script)
                 .current_dir(&paths.project_root)
                 .env("KIYA_DOWNLOAD_DIR", &paths.download_dir)
@@ -123,7 +133,9 @@ impl ServiceManager {
             paths.local_mcp_script.display()
         ));
 
-        let mut child = Command::new(&paths.node_program)
+        let mut command = Command::new(&paths.node_program);
+        configure_background_command(&mut command);
+        let mut child = command
             .arg(&paths.local_mcp_script)
             .current_dir(&paths.project_root)
             .env("KIYA_DOWNLOAD_DIR", &paths.download_dir)
@@ -188,6 +200,13 @@ impl ServiceManager {
         if let Ok(mut logs) = self.logs.lock() {
             logs.push(message.into());
         }
+    }
+}
+
+fn configure_background_command(command: &mut Command) {
+    #[cfg(target_os = "windows")]
+    {
+        command.creation_flags(CREATE_NO_WINDOW);
     }
 }
 

@@ -108,7 +108,10 @@ const CHAT_CONVERSATIONS_STORE_KEY = "chatConversations";
 const CHAT_MESSAGES_STORE_KEY = "chatMessagesByConversation";
 const DOWNLOAD_TASKS_STORE_KEY = "downloadTasks";
 const PLAYLIST_ITEMS_STORE_KEY = "playlistItems";
-const store = new LazyStore("kiya-agent.store.json", {
+const STORE_FILE_NAME = import.meta.env.DEV
+  ? "kiya-agent.dev.store.json"
+  : "kiya-agent.store.json";
+const store = new LazyStore(STORE_FILE_NAME, {
   defaults: {},
   autoSave: true,
 });
@@ -270,10 +273,46 @@ export async function streamPiAgent(
         });
       } catch (error) {
         await unlisten();
-        reject(error);
+        reject(
+          new Error(
+            normalizeDesktopError(
+              error,
+              "Pi Agent 当前不可用，请检查模型与认证配置。",
+            ),
+          ),
+        );
       }
     })().catch(reject);
   });
+}
+
+export function normalizeDesktopError(error: unknown, fallback: string): string {
+  if (error instanceof Error) {
+    return error.message || fallback;
+  }
+
+  if (typeof error === "string") {
+    const trimmed = error.trim();
+    return trimmed || fallback;
+  }
+
+  if (error && typeof error === "object") {
+    if ("message" in error && typeof error.message === "string") {
+      const trimmed = error.message.trim();
+      if (trimmed) {
+        return trimmed;
+      }
+    }
+
+    if ("toString" in error && typeof error.toString === "function") {
+      const text = error.toString().trim();
+      if (text && text !== "[object Object]") {
+        return text;
+      }
+    }
+  }
+
+  return fallback;
 }
 
 const PROMPT_HISTORY_LIMIT = 16;

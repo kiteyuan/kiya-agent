@@ -9,7 +9,13 @@ use std::{
 };
 
 use serde_json::{json, Value};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
+
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
+
+#[cfg(target_os = "windows")]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 use crate::{
     models::{PiLaunchConfig, PiStreamEvent, PiToolCall, RemoteMcpServerConfig},
@@ -90,7 +96,7 @@ impl PiManager {
             self.stop_runtime("[pi] restarting runtime to apply updated config");
         }
 
-        let runtime = resolve_pi_runtime_layout()?;
+        let runtime = resolve_pi_runtime_layout(app)?;
         write_mcp_config(&runtime, &launch.remote_mcp_servers)?;
         write_models_config(&runtime, launch)?;
         self.push_log(format!(
@@ -114,7 +120,7 @@ impl PiManager {
             .arg("--mode")
             .arg("rpc")
             .arg("-e")
-            .arg("npm:pi-mcp-adapter")
+            .arg(&runtime.mcp_adapter_extension)
             .arg("--no-session")
             .arg("--approve")
             .stdout(Stdio::piped())
@@ -194,7 +200,7 @@ impl PiManager {
             logs: None,
         });
 
-        let routed_message = build_routed_prompt(message, history_context);
+        let routed_message = build_routed_prompt(message, history_context, launch);
         let command = json!({
             "id": request_id,
             "type": "prompt",
@@ -538,13 +544,24 @@ struct PiRuntimeLayout {
     agent_dir: PathBuf,
     mcp_config_path: PathBuf,
     models_config_path: PathBuf,
+    mcp_adapter_extension: String,
     local_mcp_command: String,
     local_mcp_args: Vec<String>,
     node_program: Option<PathBuf>,
     pi_entry: PathBuf,
 }
 
-fn resolve_pi_runtime_layout() -> Result<PiRuntimeLayout, String> {
+fn resolve_bundled_runtime_state_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let app_data_dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|error| format!("无法解析 Pi Agent 数据目录: {error}"))?;
+    let state_dir = app_data_dir.join("pi-runtime");
+    fs::create_dir_all(&state_dir).map_err(|error| format!("无法创建 Pi Agent 数据目录: {error}"))?;
+    Ok(state_dir)
+}
+
+fn resolve_pi_runtime_layout(app: &AppHandle) -> Result<PiRuntimeLayout, String> {
     let resource_root = std::env::current_exe()
         .ok()
         .and_then(|exe| exe.parent().map(|dir| dir.join("resources")))
@@ -566,9 +583,10 @@ fn resolve_pi_runtime_layout() -> Result<PiRuntimeLayout, String> {
 
         if bundled_pi_entry.exists() && bundled_local_mcp.exists() {
             let working_dir = resource_root.join("pi-runtime");
-            let agent_dir = resource_root.join("runtime-state").join("pi-agent");
-            fs::create_dir_all(&agent_dir)
-                .map_err(|error| format!("创建打包运行时目录失败: {error}"))?;
+            let state_dir = resolve_bundled_runtime_state_dir(app)?;
+            let agent_dir = state_dir.join("pi-agent");
+            fs::create_dir_all(&agent_dir).map_err(|error| format!("创建 Pi Agent 运行时目录失败: {error}"))?;
+            let bundled_mcp_adapter = working_dir.join("node_modules").join("pi-mcp-adapter");
             let local_mcp_command = if let Some(program) = bundled_node.as_ref() {
                 program.display().to_string()
             } else {
@@ -576,8 +594,9 @@ fn resolve_pi_runtime_layout() -> Result<PiRuntimeLayout, String> {
             };
 
             return Ok(PiRuntimeLayout {
-                mcp_config_path: working_dir.join(".mcp.json"),
+                mcp_config_path: agent_dir.join("mcp.json"),
                 models_config_path: agent_dir.join("models.json"),
+                mcp_adapter_extension: bundled_mcp_adapter.display().to_string(),
                 working_dir,
                 agent_dir,
                 local_mcp_command,
@@ -604,6 +623,7 @@ fn resolve_pi_runtime_layout() -> Result<PiRuntimeLayout, String> {
     Ok(PiRuntimeLayout {
         mcp_config_path: project_dir.join(".mcp.json"),
         models_config_path: agent_dir.join("models.json"),
+        mcp_adapter_extension: "npm:pi-mcp-adapter".into(),
         working_dir: project_dir.clone(),
         agent_dir,
         local_mcp_command: "node".into(),
@@ -621,6 +641,7 @@ fn build_command(runtime: &PiRuntimeLayout, launch: &PiLaunchConfig) -> Command 
         .unwrap_or_else(|| PathBuf::from("node"));
 
     let mut command = Command::new(program);
+    configure_background_command(&mut command);
     for key in isolated_env_keys() {
         command.env_remove(key);
     }
@@ -636,6 +657,13 @@ fn build_command(runtime: &PiRuntimeLayout, launch: &PiLaunchConfig) -> Command 
         .arg("--api-key")
         .arg(launch.model_api_key.trim());
     command
+}
+
+fn configure_background_command(command: &mut Command) {
+    #[cfg(target_os = "windows")]
+    {
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
 }
 
 fn write_mcp_config(
@@ -722,11 +750,29 @@ fn write_models_config(runtime: &PiRuntimeLayout, launch: &PiLaunchConfig) -> Re
         .map_err(|error| format!("写入 models.json 失败: {error}"))
 }
 
-fn build_routed_prompt(message: &str, history_context: Option<&str>) -> String {
+fn build_routed_prompt(
+    message: &str,
+    history_context: Option<&str>,
+    launch: &PiLaunchConfig,
+) -> String {
     let download_file_tool = exposed_local_tool_name("download_file");
     let play_video_tool = exposed_local_tool_name("play_video");
     let show_images_tool = exposed_local_tool_name("show_images");
     let open_folder_tool = exposed_local_tool_name("open_folder");
+    let enabled_remote_servers = launch
+        .remote_mcp_servers
+        .iter()
+        .filter(|server| server.enabled && !server.url.trim().is_empty())
+        .map(|server| format!("{} ({})", display_server_name(server), server.id.trim()))
+        .collect::<Vec<_>>();
+    let remote_mcp_hint = if enabled_remote_servers.is_empty() {
+        "当前没有启用任何远程 MCP 服务器。".to_string()
+    } else {
+        format!(
+            "当前已启用的远程 MCP 服务器有：{}。",
+            enabled_remote_servers.join("、")
+        )
+    };
     let routing_hint = [
         "你运行在 Kiya Agent 桌面端。",
         "本地 MCP 服务器 `kiya-local` 始终可用。",
@@ -752,6 +798,14 @@ fn build_routed_prompt(message: &str, history_context: Option<&str>) -> String {
             "调用 `{show_images_tool}` 时必须显式提供 `images` 参数，值是按展示顺序排列的图片 URL 或本地绝对路径数组；可在合适时提供 `title` 和 `startIndex`。"
         ),
         "如果用户提供了明确的可用 URL，并且意图已经足够清晰，应直接调用对应工具；只在参数缺失时再追问。",
+    ]
+    .join("\n");
+    let routing_hint = [
+        "你运行在 Kiya Agent 桌面端。",
+        "本地 MCP 服务器 `kiya-local` 始终可用。",
+        &remote_mcp_hint,
+        "回答远程或外部 MCP 可用性时，必须以上面的服务器列表为准；如果列表非空，不要声称“当前没有任何外部 MCP 服务器”。",
+        &routing_hint,
     ]
     .join("\n");
 
