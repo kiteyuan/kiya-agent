@@ -1,57 +1,206 @@
-# React + TypeScript + Vite
+# Kiya Agent
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Kiya Agent is a desktop-first resource workflow application built for magnet search, save, download, and playback scenarios.
+It combines a Tauri desktop shell, a React frontend, bundled local runtime services, and Pi Agent orchestration so the app can coordinate MCP tools, file downloads, and media playback inside one workspace.
 
-Currently, two official plugins are available:
+## Highlights
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Desktop application built with `Tauri 2 + React + TypeScript`
+- Magnet-oriented workflow for search, save, download, and playback
+- Local tool integration for file download, video playback, image preview, and folder access
+- Embedded remote MCP presets for Magnet and MagnetFlow services
+- Pi Agent runtime orchestration with configurable LLM providers
+- Windows packaging flow with bundled runtime resources
 
-## Expanding the ESLint configuration
+## Tech Stack
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- Frontend: `React 18`, `TypeScript`, `Vite`, `Tailwind CSS`, `Zustand`
+- Desktop shell: `Tauri 2`
+- Native backend: `Rust`
+- Media: `Artplayer`
+- Runtime integration: `@earendil-works/pi-coding-agent`
 
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+## Repository Layout
+
+```text
+src/                React application UI, stores, pages, and components
+src-tauri/          Tauri and Rust desktop backend
+scripts/            Build and runtime preparation scripts
+vendor/runtime/     Bundled runtime binaries used for desktop packaging
+local-mcp/          Local MCP implementation used during development
+public/             Static frontend assets
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Prerequisites
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+For local development:
 
-export default tseslint.config({
-  extends: [
-    // other configs...
-    // Enable lint rules for React
-    reactX.configs['recommended-typescript'],
-    // Enable lint rules for React DOM
-    reactDom.configs.recommended,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+- `Node.js >= 22.19.0`
+- `npm`
+- Rust toolchain
+
+For Windows desktop development and packaging:
+
+- Microsoft Visual Studio C++ Build Tools
+- WebView2 Runtime
+
+Notes:
+
+- The default desktop window size is `1400 x 920`
+- Minimum window size is `1200 x 760`
+- Development and packaged builds use isolated local data files
+
+## Quick Start
+
+Install dependencies:
+
+```bash
+npm install
 ```
+
+Run the web frontend only:
+
+```bash
+npm run dev
+```
+
+Run the desktop application in Tauri development mode:
+
+```bash
+npm run tauri dev
+```
+
+## Development Workflow
+
+### Frontend development
+
+```bash
+npm run dev
+```
+
+Starts the Vite development server.
+
+### Desktop development
+
+```bash
+npm run tauri dev
+```
+
+Starts the desktop shell, launches the frontend dev server, and boots the local desktop runtime flow used by the application.
+
+### Type checking
+
+```bash
+npm run check
+```
+
+### Test suite
+
+```bash
+npm run test
+```
+
+### Linting
+
+```bash
+npm run lint
+```
+
+## Build Commands
+
+Build the frontend bundle:
+
+```bash
+npm run build:web
+```
+
+Build the desktop app assets and prepare Tauri resources:
+
+```bash
+npm run build:desktop
+```
+
+Prepare bundled runtime resources manually:
+
+```bash
+npm run prepare:tauri-resources
+```
+
+This step copies platform-specific runtime files from `vendor/runtime/<target>` into `src-tauri/resources/` and installs the production runtime dependencies required by the packaged app.
+
+## Windows Packaging
+
+The repository is currently configured for Windows desktop packaging.
+
+Build the default Windows installer:
+
+```bash
+npm run package:windows
+```
+
+This produces an `NSIS` installer.
+
+Build an MSI variant:
+
+```bash
+npm run package:windows-msi
+```
+
+Typical output location:
+
+```text
+src-tauri/target/release/bundle/
+```
+
+## Runtime Notes
+
+- Desktop packaging uses the app identifier: `info.kiteyuan.kiyaagent`
+- Bundled Windows runtime binaries are stored in `vendor/runtime/windows-x64`
+- Resource preparation is handled by `scripts/prepare-tauri-resources.mjs`
+- Packaged builds write mutable runtime state into the application data directory instead of the installation directory
+
+## LLM and MCP Configuration
+
+The app supports configurable model providers and MCP connections from the Settings UI, including:
+
+- `DeepSeek`
+- `OpenAI`
+- `Anthropic`
+- `OpenRouter`
+- Custom OpenAI-compatible endpoints
+
+Embedded MCP presets are included for:
+
+- `Magnet`
+- `MagnetFlow`
+
+## Recommended First Run
+
+After launching the desktop app:
+
+1. Open `Settings`
+2. Configure your model provider and API key
+3. Fill in MCP tokens if required
+4. Test the connections
+5. Start a new conversation and use the desktop tools
+
+## Troubleshooting
+
+If desktop packaging fails, check the following first:
+
+- Node.js version is new enough
+- Rust toolchain is installed correctly
+- WebView2 Runtime is available
+- No stale `node`, `aria2`, or previous `kiya-agent` processes are locking files
+- `vendor/runtime/windows-x64` contains the required runtime binaries
+
+If the desktop app starts but Pi Agent cannot run, verify:
+
+- model provider configuration
+- API key and optional base URL
+- MCP token setup
+- runtime resources prepared under `src-tauri/resources`
+
+## License
+
+This repository currently does not declare a public license in `package.json` or a dedicated `LICENSE` file. Add one before public distribution if needed.
