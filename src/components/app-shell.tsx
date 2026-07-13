@@ -11,6 +11,7 @@ import { useEffect, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import { PlayerOverlay } from "@/components/player-overlay";
+import { ImageGalleryOverlay } from "@/components/image-gallery-overlay";
 import { cn } from "@/lib/utils";
 import { openExternalUrl } from "@/services/desktop";
 import { useAppStore } from "@/stores/app-store";
@@ -73,7 +74,17 @@ export function AppShell() {
   const pendingDeleteConversation = conversations.find(
     (conversation) => conversation.id === pendingDeleteConversationId,
   );
-  const externalMcpState = resolveExternalMcpState(bootstrapped, config.remoteMcpServers);
+  const magnetSearchMcpState = resolveRemoteMcpState(
+    bootstrapped,
+    config.remoteMcpServers,
+    "magnet",
+  );
+  const magnetDownloadMcpState = resolveRemoteMcpState(
+    bootstrapped,
+    config.remoteMcpServers,
+    "magnetflow",
+  );
+  const llmModelState = resolveLlmModelState(bootstrapped, config);
 
   useEffect(() => {
     if (isDownloadsRoute) {
@@ -275,9 +286,9 @@ export function AppShell() {
 
           <div className="mt-3 border-t border-black/[0.06] px-3 pt-3 dark:border-white/10">
             <div className="space-y-2 text-[11px] text-zinc-500 dark:text-zinc-400">
-              <SidebarServiceState label="aria2" state={status.aria2} />
-              <SidebarServiceState label="本地 MCP" state={status.localMcp} />
-              <SidebarServiceState label="外部 MCP" state={externalMcpState} />
+              <SidebarServiceState label="纸鸢搜索 MCP" state={magnetSearchMcpState} />
+              <SidebarServiceState label="纸鸢下载 MCP" state={magnetDownloadMcpState} />
+              <SidebarServiceState label="LLM 模型" state={llmModelState} />
             </div>
           </div>
 
@@ -319,6 +330,7 @@ export function AppShell() {
           </div>
         </div>
       ) : null}
+      <ImageGalleryOverlay />
       <PlayerOverlay />
     </div>
   );
@@ -338,36 +350,58 @@ function getMcpToken(headers: Record<string, string>) {
   return matched ? matched[1] : rawValue;
 }
 
-function resolveExternalMcpState(
+function resolveRemoteMcpState(
   bootstrapped: boolean,
   remoteMcpServers: Array<{
+    id?: string;
     enabled: boolean;
     isEmbedded?: boolean;
     url: string;
     headers: Record<string, string>;
   }>,
+  serverId: string,
 ) {
   if (!bootstrapped) {
     return "starting" as const;
   }
 
-  const activeServers = remoteMcpServers.filter((server) =>
-    server.isEmbedded ? true : server.enabled,
-  );
-
-  if (activeServers.length === 0) {
+  const targetServer = remoteMcpServers.find((server) => server.id === serverId);
+  if (!targetServer) {
     return "error" as const;
   }
 
-  const allConfigured = activeServers.every((server) => {
-    if (server.isEmbedded) {
-      return Boolean(getMcpToken(server.headers).trim());
-    }
+  if (targetServer.isEmbedded) {
+    return getMcpToken(targetServer.headers).trim() ? ("ready" as const) : ("error" as const);
+  }
 
-    return Boolean(server.url.trim());
-  });
+  const isConfigured = targetServer.enabled && Boolean(targetServer.url.trim());
+  return isConfigured ? ("ready" as const) : ("error" as const);
+}
 
-  return allConfigured ? "ready" : "error";
+function resolveLlmModelState(
+  bootstrapped: boolean,
+  config: {
+    modelProvider: string;
+    modelApiKey: string;
+    modelBaseUrl: string;
+  },
+) {
+  if (!bootstrapped) {
+    return "starting" as const;
+  }
+
+  if (!config.modelApiKey.trim()) {
+    return "error" as const;
+  }
+
+  if (
+    config.modelProvider === "custom-openai" &&
+    !config.modelBaseUrl.trim()
+  ) {
+    return "error" as const;
+  }
+
+  return "ready" as const;
 }
 
 function SidebarServiceState({
@@ -383,11 +417,16 @@ function SidebarServiceState({
       : state === "error"
         ? "bg-amber-500"
         : "bg-zinc-400 dark:bg-zinc-500";
+  const statusLabel =
+    state === "ready" ? "已连接" : state === "error" ? "未连接" : "连接中";
 
   return (
-    <div className="flex items-center gap-2">
-      <span className={cn("h-1.5 w-1.5 rounded-full", dotClassName)} />
-      <span>{label}</span>
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex min-w-0 items-center gap-2">
+        <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", dotClassName)} />
+        <span className="truncate">{label}</span>
+      </div>
+      <span className="shrink-0 text-zinc-400 dark:text-zinc-500">{statusLabel}</span>
     </div>
   );
 }

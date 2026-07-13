@@ -11,6 +11,7 @@ import {
 } from "@/services/desktop";
 import { useAppStore } from "@/stores/app-store";
 import { useDownloadStore } from "@/stores/download-store";
+import { useImageGalleryStore } from "@/stores/image-gallery-store";
 import { usePlaylistStore } from "@/stores/playlist-store";
 import type { ChatConversationSummary, ChatMessage } from "@/types/app";
 
@@ -257,6 +258,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
         if (event.stage === "tool-call" && event.toolCall) {
           useDownloadStore.getState().registerToolCalls([event.toolCall]);
+          useImageGalleryStore.getState().registerToolCalls([event.toolCall]);
           usePlaylistStore.getState().registerToolCalls([event.toolCall]);
 
           const toolMessage: ChatMessage = {

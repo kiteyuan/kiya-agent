@@ -725,12 +725,13 @@ fn write_models_config(runtime: &PiRuntimeLayout, launch: &PiLaunchConfig) -> Re
 fn build_routed_prompt(message: &str, history_context: Option<&str>) -> String {
     let download_file_tool = exposed_local_tool_name("download_file");
     let play_video_tool = exposed_local_tool_name("play_video");
+    let show_images_tool = exposed_local_tool_name("show_images");
     let open_folder_tool = exposed_local_tool_name("open_folder");
     let routing_hint = [
         "你运行在 Kiya Agent 桌面端。",
         "本地 MCP 服务器 `kiya-local` 始终可用。",
         &format!(
-            "当前应优先使用的本地工具名是 `{download_file_tool}`、`{play_video_tool}`、`{open_folder_tool}`。它们分别对应底层 MCP 工具 `download_file`、`play_video`、`open_folder`。"
+            "当前应优先使用的本地工具名是 `{download_file_tool}`、`{play_video_tool}`、`{show_images_tool}`、`{open_folder_tool}`。它们分别对应底层 MCP 工具 `download_file`、`play_video`、`show_images`、`open_folder`。"
         ),
         &format!(
             "当用户要求下载直链文件、保存资源、开始下载时，优先调用 `{download_file_tool}`，不要只做能力介绍。"
@@ -743,6 +744,12 @@ fn build_routed_prompt(message: &str, history_context: Option<&str>) -> String {
         ),
         &format!(
             "调用 `{play_video_tool}` 时必须显式提供 `title` 参数。标题应使用用户提到的影片名、资源标题或上下文里最自然的名称，不要省略，也不要退回成 `play` 这类通用名。"
+        ),
+        &format!(
+            "当用户要求展示图片、预览一组图片、轮播查看图片链接时，优先调用 `{show_images_tool}`，不要只返回图片 URL 或建议用户自己在浏览器里打开。"
+        ),
+        &format!(
+            "调用 `{show_images_tool}` 时必须显式提供 `images` 参数，值是按展示顺序排列的图片 URL 或本地绝对路径数组；可在合适时提供 `title` 和 `startIndex`。"
         ),
         "如果用户提供了明确的可用 URL，并且意图已经足够清晰，应直接调用对应工具；只在参数缺失时再追问。",
     ]

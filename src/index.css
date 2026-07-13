@@ -47,3 +47,24 @@ textarea {
 .dark ::selection {
   background: rgba(255, 255, 255, 0.18);
 }
+
+.kiya-player-surface .art-video-player {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.kiya-player-surface .art-video-player .art-video {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.kiya-player-surface .art-video-player video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.kiya-player-surface .art-video-player .art-bottom {
+  bottom: 0;
+}

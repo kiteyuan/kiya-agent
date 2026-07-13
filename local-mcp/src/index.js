@@ -62,6 +62,33 @@ const tools = [
     },
   },
   {
+    name: "show_images",
+    description:
+      "Open one or more local or remote images in the Kiya in-app image viewer. Provide a non-empty `images` array of http/https URLs or absolute local file paths. Use `title` to describe the image set when helpful.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        images: {
+          type: "array",
+          items: {
+            type: "string",
+          },
+          description:
+            "Ordered list of image URLs or absolute local image file paths to show",
+        },
+        title: {
+          type: "string",
+          description: "Optional gallery title shown in the image viewer",
+        },
+        startIndex: {
+          type: "number",
+          description: "Optional zero-based image index to open initially",
+        },
+      },
+      required: ["images"],
+    },
+  },
+  {
     name: "open_folder",
     description:
       "Open the download directory or a target folder in the system file manager.",
@@ -139,6 +166,8 @@ async function callTool(name, args = {}) {
       return downloadFile(args);
     case "play_video":
       return playVideo(args);
+    case "show_images":
+      return showImages(args);
     case "open_folder":
       return openFolder(args);
     default:
@@ -232,6 +261,32 @@ async function playVideo(args) {
   const title = args.title.trim();
   return toolResult(
     `Queued ${mediaSource.kind} ${mediaSource.value} with title ${title}`,
+  );
+}
+
+async function showImages(args) {
+  if (!Array.isArray(args.images)) {
+    throw new Error("show_images requires a non-empty images array");
+  }
+
+  const images = args.images
+    .filter((item) => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  if (images.length === 0) {
+    throw new Error("show_images requires a non-empty images array");
+  }
+
+  const title =
+    typeof args.title === "string" && args.title.trim()
+      ? args.title.trim()
+      : images.length === 1
+        ? path.basename(images[0])
+        : "图片预览";
+
+  return toolResult(
+    `Queued ${images.length} image(s) with title ${title}`,
   );
 }
 

@@ -64,6 +64,22 @@ export interface PlaylistItem {
   addedAt: string;
 }
 
+export interface ImageGalleryImage {
+  id: string;
+  source: string;
+  title: string;
+  kind: "local-file" | "remote-url";
+}
+
+export interface ImageGalleryPresentation {
+  id: string;
+  title: string;
+  images: ImageGalleryImage[];
+  activeIndex: number;
+  origin: "tool-call" | "manual";
+  addedAt: string;
+}
+
 export interface ToolCallSummary {
   tool: string;
   detail: string;

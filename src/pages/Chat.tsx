@@ -188,7 +188,7 @@ export default function ChatPage() {
                 你好，我是 Kiya Agent
               </h1>
               <p className="text-sm leading-7 text-zinc-500 dark:text-zinc-400">
-                今天想处理什么？可以直接问我下载、播放、MCP 或配置相关的问题。
+                想找什么资源？可以直接让我帮你搜索资源、转存磁力、下载文件，或者在线播放视频。
               </p>
             </div>
             {composer}

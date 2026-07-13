@@ -5,6 +5,7 @@ mod commands;
 mod models;
 mod pi;
 mod services;
+mod window_state;
 
 use std::sync::Arc;
 
@@ -19,6 +20,7 @@ use commands::{
 };
 use pi::{PiManager, SharedPiManager};
 use services::{spawn_managed_services, ServiceManager, SharedServiceManager};
+use window_state::{attach_main_window_state_tracking, restore_main_window_state};
 
 fn main() {
     let pi_state: SharedPiManager = Arc::new(PiManager::default());
@@ -30,6 +32,8 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .setup(move |app| {
+            restore_main_window_state(app.handle());
+            attach_main_window_state_tracking(app.handle());
             spawn_managed_services(service_state.clone(), app.handle().clone());
             Ok(())
         })

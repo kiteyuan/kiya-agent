@@ -42,7 +42,7 @@ export function PlayerSurface({ path }: PlayerSurfaceProps) {
       pip: true,
       miniProgressBar: true,
       backdrop: false,
-      autoSize: true,
+      autoSize: false,
     });
 
     return () => {
@@ -53,10 +53,10 @@ export function PlayerSurface({ path }: PlayerSurfaceProps) {
   return (
     <div
       ref={containerRef}
-      className="aspect-video w-full overflow-hidden bg-black"
+      className="kiya-player-surface flex h-full w-full items-center justify-center overflow-hidden rounded-2xl bg-black"
     >
       {!videoUrl ? (
-        <div className="flex h-full items-center justify-center text-sm text-zinc-300">
+        <div className="flex h-full w-full items-center justify-center text-sm text-zinc-300">
           当前预览仅在 Tauri 桌面环境中加载本地视频
         </div>
       ) : null}
