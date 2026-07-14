@@ -30,3 +30,4 @@ dist-ssr
 # Tauri / Rust build output
 src-tauri/target/
 .cargo-check-tauri/
+.tmp/

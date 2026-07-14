@@ -6,6 +6,7 @@ import axios from "axios";
 
 import type {
   AppBootstrapStatus,
+  AppStatusPayload,
   ChatConversationSummary,
   ChatMessage,
   DownloadTask,
@@ -90,11 +91,6 @@ export const defaultConfig: LocalConfig = {
   modelApiKey: "",
   modelBaseUrl: "",
 };
-
-interface AppStatusPayload {
-  status: AppBootstrapStatus;
-  logs: string[];
-}
 
 export interface McpConnectionTestResult {
   ok: boolean;
@@ -213,7 +209,13 @@ export async function readAppStatusDetails(): Promise<AppStatusPayload> {
     logs: [
       "[bootstrap] aria2 ready",
       "[bootstrap] local mcp ready",
+      "[pi] preview mode fallback",
     ],
+    bootstrapLogs: [
+      "[bootstrap] aria2 ready",
+      "[bootstrap] local mcp ready",
+    ],
+    piLogs: ["[pi] preview mode fallback"],
   };
 }
 

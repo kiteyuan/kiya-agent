@@ -6,6 +6,13 @@ export interface AppBootstrapStatus {
   piAgentConfig: "missing" | "generated" | "error";
 }
 
+export interface AppStatusPayload {
+  status: AppBootstrapStatus;
+  logs: string[];
+  bootstrapLogs: string[];
+  piLogs: string[];
+}
+
 export type ModelProvider =
   | "openai"
   | "anthropic"

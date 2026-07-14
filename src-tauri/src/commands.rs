@@ -9,7 +9,7 @@ use reqwest::{
     header::{HeaderMap, HeaderName, HeaderValue},
     Client,
 };
-use serde_json::json;
+use serde_json::{json, Value};
 use tauri::{AppHandle, State};
 use url::Url;
 use uuid::Uuid;
@@ -60,11 +60,15 @@ pub fn read_app_status(
     pi_state: State<'_, SharedPiManager>,
     service_state: State<'_, SharedServiceManager>,
 ) -> AppStatusPayload {
-    let mut logs = service_state.logs();
-    logs.extend(pi_state.logs());
+    let bootstrap_logs = service_state.logs();
+    let pi_logs = pi_state.logs();
+    let mut logs = bootstrap_logs.clone();
+    logs.extend(pi_logs.clone());
     AppStatusPayload {
         status: build_bootstrap_status(pi_state.inner(), service_state.inner()),
         logs,
+        bootstrap_logs,
+        pi_logs,
     }
 }
 
@@ -225,40 +229,57 @@ pub async fn test_model_connection(
     validate_model_connection_config(&config)?;
     pi_state.ensure_started(&app, &config)?;
 
-    let (url, headers) = build_model_test_request(&config)?;
+    let (url, headers, body) = build_model_test_request(&config)?;
     let client = Client::new();
     let response = client
-        .get(url)
+        .post(url)
         .headers(headers)
+        .json(&body)
         .send()
         .await
         .map_err(|error| format!("模型服务不可达: {error}"))?;
 
     let status = response.status();
     let status_code = status.as_u16();
+    let response_text = response
+        .text()
+        .await
+        .unwrap_or_else(|_| String::new());
     let result = if status.is_success() {
         McpConnectionTestResult {
             ok: true,
             status_code: Some(status_code),
-            message: format!("连接成功，HTTP {status_code}"),
+            message: format!(
+                "连接成功，HTTP {status_code}，模型 {} 可用于真实推理请求",
+                config.model_name.trim()
+            ),
         }
     } else if status_code == 401 || status_code == 403 {
         McpConnectionTestResult {
             ok: false,
             status_code: Some(status_code),
-            message: format!("鉴权失败，HTTP {status_code}，请检查 API 密钥是否有效"),
+            message: format!(
+                "鉴权失败，HTTP {status_code}，请检查 API 密钥是否有效。{}",
+                summarize_model_test_error(&response_text)
+            ),
         }
-    } else if status_code == 400 || status_code == 405 {
+    } else if status_code == 400 || status_code == 404 || status_code == 422 {
         McpConnectionTestResult {
-            ok: true,
+            ok: false,
             status_code: Some(status_code),
-            message: format!("服务可达，HTTP {status_code}，接口已响应"),
+            message: format!(
+                "模型测试请求被拒绝，HTTP {status_code}，请检查接口地址、模型名称或请求兼容性。{}",
+                summarize_model_test_error(&response_text)
+            ),
         }
     } else {
         McpConnectionTestResult {
             ok: false,
             status_code: Some(status_code),
-            message: format!("模型服务返回 HTTP {status_code}"),
+            message: format!(
+                "模型服务返回 HTTP {status_code}。{}",
+                summarize_model_test_error(&response_text)
+            ),
         }
     };
 
@@ -510,9 +531,10 @@ fn validate_model_connection_config(config: &PiLaunchConfig) -> Result<(), Strin
 
 fn build_model_test_request(
     config: &PiLaunchConfig,
-) -> Result<(String, HeaderMap), String> {
+) -> Result<(String, HeaderMap, Value), String> {
     let base_url = resolve_model_base_url(config)?;
     let mut headers = HeaderMap::new();
+    let model_name = config.model_name.trim();
 
     match config.model_provider.as_str() {
         "anthropic" => {
@@ -525,7 +547,20 @@ fn build_model_test_request(
                 HeaderName::from_static("anthropic-version"),
                 HeaderValue::from_static("2023-06-01"),
             );
-            Ok((format!("{base_url}/models"), headers))
+            Ok((
+                format!("{base_url}/messages"),
+                headers,
+                json!({
+                    "model": model_name,
+                    "max_tokens": 1,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": "Reply with OK"
+                        }
+                    ]
+                }),
+            ))
         }
         "openai" | "openrouter" | "deepseek" | "custom-openai" => {
             headers.insert(
@@ -533,9 +568,76 @@ fn build_model_test_request(
                 HeaderValue::from_str(&format!("Bearer {}", config.model_api_key.trim()))
                     .map_err(|error| format!("无效 API 密钥: {error}"))?,
             );
-            Ok((format!("{base_url}/models"), headers))
+            Ok((
+                format!("{base_url}/chat/completions"),
+                headers,
+                json!({
+                    "model": model_name,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": "Reply with OK"
+                        }
+                    ],
+                    "max_tokens": 1,
+                    "temperature": 0,
+                    "stream": false
+                }),
+            ))
         }
         _ => Err(format!("不支持的模型提供商: {}", config.model_provider)),
+    }
+}
+
+fn summarize_model_test_error(response_text: &str) -> String {
+    let trimmed = response_text.trim();
+    if trimmed.is_empty() {
+        return "服务端没有返回更多错误详情".into();
+    }
+
+    if let Ok(parsed) = serde_json::from_str::<Value>(trimmed) {
+        for key in ["error", "message", "detail"] {
+            if let Some(value) = parsed.get(key) {
+                if let Some(message) = extract_message_from_value(value) {
+                    return format!("服务端提示: {message}");
+                }
+            }
+        }
+
+        if let Some(message) = extract_message_from_value(&parsed) {
+            return format!("服务端提示: {message}");
+        }
+    }
+
+    let compact = trimmed.replace(['\r', '\n'], " ");
+    let shortened = if compact.chars().count() > 180 {
+        format!("{}...", compact.chars().take(180).collect::<String>())
+    } else {
+        compact
+    };
+    format!("服务端提示: {shortened}")
+}
+
+fn extract_message_from_value(value: &Value) -> Option<String> {
+    match value {
+        Value::String(text) => {
+            let trimmed = text.trim();
+            if trimmed.is_empty() {
+                None
+            } else {
+                Some(trimmed.to_string())
+            }
+        }
+        Value::Object(map) => {
+            for key in ["message", "detail", "type", "code"] {
+                if let Some(inner) = map.get(key).and_then(extract_message_from_value) {
+                    return Some(inner);
+                }
+            }
+            None
+        }
+        Value::Array(items) => items.iter().find_map(extract_message_from_value),
+        _ => None,
     }
 }
 

@@ -19,6 +19,16 @@ type TranslationKey =
   | "nav.playlist"
   | "nav.settings"
   | "nav.diagnostics"
+  | "diagnostics.title"
+  | "diagnostics.description"
+  | "diagnostics.refresh"
+  | "diagnostics.refreshing"
+  | "diagnostics.lastUpdated"
+  | "diagnostics.lines"
+  | "diagnostics.piLogs"
+  | "diagnostics.bootstrapLogs"
+  | "diagnostics.empty"
+  | "diagnostics.loadFailed"
   | "chat.welcomeTitle"
   | "chat.welcomeDescription"
   | "chat.composerPlaceholder"
@@ -111,6 +121,16 @@ const translations: Record<AppLanguage, TranslationDictionary> = {
     "nav.playlist": "播放历史",
     "nav.settings": "设置",
     "nav.diagnostics": "诊断日志",
+    "diagnostics.title": "运行诊断",
+    "diagnostics.description": "这里会直接显示 Pi Agent 运行日志，便于继续追查空回复、进程退出和配置问题。",
+    "diagnostics.refresh": "刷新日志",
+    "diagnostics.refreshing": "刷新中",
+    "diagnostics.lastUpdated": "最近刷新 {value}",
+    "diagnostics.lines": "{count} 条",
+    "diagnostics.piLogs": "Pi 运行日志",
+    "diagnostics.bootstrapLogs": "启动与本地服务日志",
+    "diagnostics.empty": "当前还没有可显示的日志。",
+    "diagnostics.loadFailed": "刷新诊断失败：{message}",
     "chat.welcomeTitle": "你好，我是 Kiya Agent",
     "chat.welcomeDescription": "想找什么资源？可以直接让我帮你搜索资源、转存磁力、下载文件，或者在线播放视频。",
     "chat.composerPlaceholder": "想聊点什么？",
@@ -200,6 +220,16 @@ const translations: Record<AppLanguage, TranslationDictionary> = {
     "nav.playlist": "Playback History",
     "nav.settings": "Settings",
     "nav.diagnostics": "Diagnostics",
+    "diagnostics.title": "Runtime Diagnostics",
+    "diagnostics.description": "Pi Agent runtime logs are shown here directly so we can keep tracing empty replies, process exits, and configuration issues.",
+    "diagnostics.refresh": "Refresh Logs",
+    "diagnostics.refreshing": "Refreshing",
+    "diagnostics.lastUpdated": "Last refreshed {value}",
+    "diagnostics.lines": "{count} lines",
+    "diagnostics.piLogs": "Pi Runtime Logs",
+    "diagnostics.bootstrapLogs": "Bootstrap and Local Service Logs",
+    "diagnostics.empty": "No logs are available yet.",
+    "diagnostics.loadFailed": "Failed to refresh diagnostics: {message}",
     "chat.welcomeTitle": "Hi, I'm Kiya Agent",
     "chat.welcomeDescription": "Looking for something? I can help search resources, save magnets, download files, or play videos online.",
     "chat.composerPlaceholder": "What would you like to do?",

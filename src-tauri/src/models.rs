@@ -13,6 +13,8 @@ pub struct AppBootstrapStatus {
 pub struct AppStatusPayload {
     pub status: AppBootstrapStatus,
     pub logs: Vec<String>,
+    pub bootstrap_logs: Vec<String>,
+    pub pi_logs: Vec<String>,
 }
 
 #[derive(Clone, Serialize)]

@@ -11,8 +11,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "prepare:tauri-resources": "node ./scripts/prepare-tauri-resources.mjs",
-    "package:windows": "npm run prepare:tauri-resources && npm run tauri build -- --bundles nsis",
-    "package:windows-msi": "npm run prepare:tauri-resources && npm run tauri build -- --bundles msi",
+    "package:windows": "node ./scripts/run-with-local-temp.mjs -- npm run tauri build -- --bundles nsis",
+    "package:windows-msi": "node ./scripts/run-with-local-temp.mjs -- npm run tauri build -- --bundles msi",
     "check": "tsc -b --noEmit",
     "test": "vitest run",
     "tauri": "tauri"
