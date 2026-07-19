@@ -234,11 +234,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       const config = useAppStore.getState().config;
       await streamPiAgent(content, config, historyMessages, (event) => {
         if (event.stage === "text-delta" && event.delta) {
+          const delta = event.delta;
           const nextDeltaMessages = get().messages.map((message) =>
             message.id === assistantMessageId
               ? {
                   ...message,
-                  content: message.toolCall ? event.delta : `${message.content}${event.delta}`,
+                  content: message.toolCall
+                    ? delta
+                    : `${message.content}${delta}`,
                   toolCall: undefined,
                 }
               : message,

@@ -2,7 +2,9 @@
 
 mod chat_db;
 mod commands;
+mod crash_log;
 mod models;
+mod path_guard;
 mod pi;
 mod services;
 mod window_state;
@@ -11,13 +13,13 @@ use std::sync::Arc;
 
 use commands::{
     bootstrap_services, clear_download_task, create_chat_conversation, delete_chat_conversation,
-    generate_pi_agent_config, list_chat_conversations, list_download_history, list_download_tasks,
-    list_playlist_history, load_chat_messages, open_external_url, open_folder_path,
-    open_media_file, pause_download_task, prompt_pi_agent, read_app_status,
-    read_runtime_defaults, resume_download_task, save_chat_messages,
-    save_download_history, save_playlist_history, submit_download_request, test_mcp_server,
-    test_model_connection,
+    list_chat_conversations, list_download_history, list_download_tasks, list_playlist_history,
+    load_chat_messages, open_external_url, open_folder_path, open_media_file, pause_download_task,
+    prompt_pi_agent, read_app_status, read_runtime_defaults, resume_download_task,
+    save_chat_messages, save_download_history, save_playlist_history, submit_download_request,
+    test_mcp_server, test_model_connection,
 };
+use crash_log::report_client_error;
 use pi::{PiManager, SharedPiManager};
 use services::{spawn_managed_services, ServiceManager, SharedServiceManager};
 use window_state::{attach_main_window_state_tracking, restore_main_window_state};
@@ -32,6 +34,7 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .setup(move |app| {
+            crash_log::install(app.handle());
             restore_main_window_state(app.handle());
             attach_main_window_state_tracking(app.handle());
             spawn_managed_services(service_state.clone(), app.handle().clone());
@@ -50,7 +53,6 @@ fn main() {
             save_download_history,
             list_playlist_history,
             save_playlist_history,
-            generate_pi_agent_config,
             list_download_tasks,
             pause_download_task,
             resume_download_task,
@@ -61,7 +63,8 @@ fn main() {
             prompt_pi_agent,
             test_mcp_server,
             test_model_connection,
-            submit_download_request
+            submit_download_request,
+            report_client_error
         ])
         .run(tauri::generate_context!())
         .expect("error while running Kiya Agent");

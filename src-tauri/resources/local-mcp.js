@@ -15,6 +15,21 @@ function fallbackDownloadDir() {
 const DOWNLOAD_DIR =
   process.env.KIYA_DOWNLOAD_DIR?.trim() || fallbackDownloadDir();
 const ARIA2_RPC_URL = "http://127.0.0.1:16800/jsonrpc";
+const ARIA2_RPC_SECRET = process.env.KIYA_ARIA2_RPC_SECRET?.trim() || "";
+
+function aria2Params(...params) {
+  if (ARIA2_RPC_SECRET) {
+    return [`token:${ARIA2_RPC_SECRET}`, ...params];
+  }
+  return params;
+}
+
+function isPathWithinDownloadDir(targetPath) {
+  const resolvedTarget = path.resolve(targetPath);
+  const resolvedRoot = path.resolve(DOWNLOAD_DIR);
+  const relative = path.relative(resolvedRoot, resolvedTarget);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
 
 const tools = [
   {
@@ -199,12 +214,12 @@ async function downloadFile(args) {
       jsonrpc: "2.0",
       id: "kiya-local-mcp",
       method: "aria2.addUri",
-      params: [[args.url], {
+      params: aria2Params([args.url], {
         dir: DOWNLOAD_DIR,
         out: output,
         "allow-overwrite": "false",
         "auto-file-renaming": "true",
-      }],
+      }),
     }),
   }).catch((error) => {
     throw new Error(`aria2 RPC unavailable: ${error.message}`);
@@ -292,17 +307,24 @@ async function showImages(args) {
 
 async function openFolder(args) {
   const targetPath =
-    typeof args.path === "string" && args.path.trim() ? args.path : DOWNLOAD_DIR;
+    typeof args.path === "string" && args.path.trim() ? args.path.trim() : DOWNLOAD_DIR;
+  const resolvedPath = path.resolve(targetPath);
 
-  if (process.platform === "win32") {
-    spawnDetached("explorer", [targetPath]);
-  } else if (process.platform === "darwin") {
-    spawnDetached("open", [targetPath]);
-  } else {
-    spawnDetached("xdg-open", [targetPath]);
+  if (!isPathWithinDownloadDir(resolvedPath)) {
+    throw new Error(
+      `open_folder path must stay under download directory: ${DOWNLOAD_DIR}`,
+    );
   }
 
-  return toolResult(`Opened folder ${targetPath}`);
+  if (process.platform === "win32") {
+    spawnDetached("explorer", [resolvedPath]);
+  } else if (process.platform === "darwin") {
+    spawnDetached("open", [resolvedPath]);
+  } else {
+    spawnDetached("xdg-open", [resolvedPath]);
+  }
+
+  return toolResult(`Opened folder ${resolvedPath}`);
 }
 
 rl.on("line", (line) => {

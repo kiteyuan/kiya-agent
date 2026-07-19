@@ -1,4 +1,4 @@
-# Kiya Agent
+﻿# Kiya Agent
 
 Kiya Agent is a desktop-first resource workflow application built for magnet search, save, download, and playback scenarios.
 It combines a Tauri desktop shell, a React frontend, bundled local runtime services, and Pi Agent orchestration so the app can coordinate MCP tools, file downloads, and media playback inside one workspace.
@@ -151,8 +151,10 @@ npm run package:windows-msi
 Typical output location:
 
 ```text
-src-tauri/target/release/bundle/
+%LOCALAPPDATA%\kiya-agent\cargo-target\release\bundle\
 ```
+
+(On Linux/macOS builds: `~/.cache/kiya-agent/cargo-target/release/bundle/`.)
 
 ## Runtime Notes
 
@@ -196,6 +198,17 @@ If desktop packaging fails, check the following first:
 - No stale `node`, `aria2`, or previous `kiya-agent` processes are locking files
 - `vendor/runtime/windows-x64` contains the required runtime binaries
 
+If `npm run tauri dev` fails with missing `app_hide.toml` / permission file paths, clear caches and retry:
+
+```bash
+npm run clean:tauri
+npm run tauri dev
+```
+
+`npm run tauri` now uses a stable `CARGO_TARGET_DIR` under your user cache/AppData (no spaces). This avoids Windows + Tauri path corruption when the repo lives under paths like `Base Projects`. Long-term, prefer cloning the repo to a path without spaces.
+
+Crash / panic logs (desktop) are appended to the OS app log directory as `crash.log` (Windows: `%APPDATA%\info.kiteyuan.kiyaagent\logs\crash.log` or the Tauri app log dir).
+
 If the desktop app starts but Pi Agent cannot run, verify:
 
 - model provider configuration
@@ -205,4 +218,4 @@ If the desktop app starts but Pi Agent cannot run, verify:
 
 ## License
 
-This repository currently does not declare a public license in `package.json` or a dedicated `LICENSE` file. Add one before public distribution if needed.
+MIT. See [`LICENSE`](./LICENSE).

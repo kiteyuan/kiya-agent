@@ -44,6 +44,8 @@ export interface LocalConfig {
   modelName: string;
   modelApiKey: string;
   modelBaseUrl: string;
+  /** When true, Pi Agent launches with --approve for tool calls. */
+  autoApproveTools: boolean;
 }
 
 export interface RuntimeDefaults {

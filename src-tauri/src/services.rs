@@ -4,19 +4,36 @@ use std::{
     net::{TcpStream, ToSocketAddrs},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, OnceLock},
     thread,
     time::Duration,
 };
 
-use tauri::{AppHandle, Manager};
+use rand::{distributions::Alphanumeric, Rng};
 use serde_json::json;
+use tauri::{AppHandle, Manager};
 
 #[cfg(target_os = "windows")]
 use std::os::windows::process::CommandExt;
 
 #[cfg(target_os = "windows")]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+static ARIA2_RPC_SECRET: OnceLock<String> = OnceLock::new();
+
+pub fn aria2_rpc_secret() -> &'static str {
+    ARIA2_RPC_SECRET.get_or_init(|| {
+        rand::thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(32)
+            .map(char::from)
+            .collect()
+    })
+}
+
+pub fn aria2_rpc_token_param() -> String {
+    format!("token:{}", aria2_rpc_secret())
+}
 
 #[derive(Clone)]
 pub struct ServiceManager {
@@ -85,6 +102,7 @@ impl ServiceManager {
                     "--continue=true",
                     "--summary-interval=0",
                 ])
+                .arg(format!("--rpc-secret={}", aria2_rpc_secret()))
                 .arg(format!("--dir={}", paths.download_dir.display()))
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())
@@ -105,6 +123,7 @@ impl ServiceManager {
                 .arg(&paths.mock_aria2_script)
                 .current_dir(&paths.project_root)
                 .env("KIYA_DOWNLOAD_DIR", &paths.download_dir)
+                .env("KIYA_ARIA2_RPC_SECRET", aria2_rpc_secret())
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())
                 .spawn()
@@ -139,6 +158,7 @@ impl ServiceManager {
             .arg(&paths.local_mcp_script)
             .current_dir(&paths.project_root)
             .env("KIYA_DOWNLOAD_DIR", &paths.download_dir)
+            .env("KIYA_ARIA2_RPC_SECRET", aria2_rpc_secret())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -238,17 +258,7 @@ pub struct RuntimePaths {
 
 impl RuntimePaths {
     fn from_app(app: &AppHandle) -> Self {
-        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let project_root = manifest_dir
-            .parent()
-            .map(Path::to_path_buf)
-            .unwrap_or(manifest_dir.clone());
-        let resource_dir = app.path().resource_dir().ok();
-        let resource_paths = resource_dir
-            .as_ref()
-            .map(|dir| vec![dir.clone()])
-            .unwrap_or_default();
-        Self::resolve(project_root, resource_paths)
+        Self::from_command(app)
     }
 
     pub fn from_command(app: &AppHandle) -> Self {

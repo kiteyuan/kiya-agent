@@ -11,6 +11,23 @@ const DEFAULT_DOWNLOAD_DIR =
     : process.platform === "linux"
       ? "/home/runner/Downloads"
       : "C:/Users/runner/Downloads");
+const ARIA2_RPC_SECRET = process.env.KIYA_ARIA2_RPC_SECRET?.trim() || "";
+
+function normalizeParams(params = []) {
+  if (typeof params[0] === "string" && params[0].startsWith("token:")) {
+    const provided = params[0].slice("token:".length);
+    if (ARIA2_RPC_SECRET && provided !== ARIA2_RPC_SECRET) {
+      throw new Error("Unauthorized aria2 RPC token");
+    }
+    return params.slice(1);
+  }
+
+  if (ARIA2_RPC_SECRET) {
+    throw new Error("Missing aria2 RPC token");
+  }
+
+  return params;
+}
 
 const tasks = new Map();
 const stoppedOrder = [];
@@ -129,7 +146,13 @@ function jsonRpcError(id, message) {
 }
 
 function handleRpc(payload) {
-  const { id, method, params = [] } = payload;
+  const { id, method } = payload;
+  let params;
+  try {
+    params = normalizeParams(payload.params || []);
+  } catch (error) {
+    return jsonRpcError(id, error.message || "Unauthorized");
+  }
 
   if (method === "aria2.addUri") {
     const uris = params[0] || [];

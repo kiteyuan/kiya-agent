@@ -92,6 +92,9 @@ type TranslationKey =
   | "settings.customModel"
   | "settings.apiKey"
   | "settings.baseUrl"
+  | "settings.agentSectionTitle"
+  | "settings.autoApproveTools"
+  | "settings.autoApproveToolsHint"
   | "settings.save"
   | "overlay.closePlayer"
   | "overlay.closeImagePreview"
@@ -194,6 +197,10 @@ const translations: Record<AppLanguage, TranslationDictionary> = {
     "settings.customModel": "手动输入其他模型",
     "settings.apiKey": "API 密钥",
     "settings.baseUrl": "接口地址",
+    "settings.agentSectionTitle": "Agent 安全",
+    "settings.autoApproveTools": "自动批准工具调用",
+    "settings.autoApproveToolsHint":
+      "开启后，Pi Agent 启动时会带上 --approve，工具调用无需逐次确认。关闭后需在 Agent 侧手动批准（更安全，但交互更慢）。",
     "settings.save": "保存设置",
     "overlay.closePlayer": "关闭播放器",
     "overlay.closeImagePreview": "关闭图片预览",
@@ -293,6 +300,10 @@ const translations: Record<AppLanguage, TranslationDictionary> = {
     "settings.customModel": "Enter another model manually",
     "settings.apiKey": "API Key",
     "settings.baseUrl": "Base URL",
+    "settings.agentSectionTitle": "Agent Security",
+    "settings.autoApproveTools": "Auto-approve tool calls",
+    "settings.autoApproveToolsHint":
+      "When enabled, Pi Agent launches with --approve so tools run without per-call confirmation. Disable for safer manual approvals (slower UX).",
     "settings.save": "Save Settings",
     "overlay.closePlayer": "Close player",
     "overlay.closeImagePreview": "Close image preview",

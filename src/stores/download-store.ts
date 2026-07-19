@@ -190,7 +190,9 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
   clearHistory: async () => {
     const tasksToClear = get().tasks;
     await Promise.allSettled(
-      tasksToClear.map((task) => clearDownloadTask(task)),
+      tasksToClear.map((task) =>
+        clearDownloadTask(task, useAppStore.getState().config.downloadDir),
+      ),
     );
 
     set(() => ({
@@ -208,7 +210,10 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     }
 
     if (taskToRemove) {
-      await clearDownloadTask(taskToRemove);
+      await clearDownloadTask(
+        taskToRemove,
+        useAppStore.getState().config.downloadDir,
+      );
     }
 
     set(() => ({
@@ -244,7 +249,7 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
         const payload = parseToolCallDetail(toolCall.detail);
         const url =
           payload && typeof payload.url === "string" ? payload.url : undefined;
-        if (!url) {
+        if (!payload || !url) {
           return null;
         }
 
@@ -432,7 +437,7 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
       return;
     }
 
-    await clearDownloadTask(task);
+    await clearDownloadTask(task, useAppStore.getState().config.downloadDir);
 
     const downloadDir = useAppStore.getState().config.downloadDir;
     const outputName = deriveOutputNameFromPath(task.filePath);
@@ -457,8 +462,9 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
     });
   },
   openDownloadFolder: async (task) => {
+    const downloadDir = useAppStore.getState().config.downloadDir;
     if (!task) {
-      return openFolder();
+      return openFolder(downloadDir, downloadDir);
     }
 
     let resolvedPath = task.filePath;
@@ -486,6 +492,6 @@ export const useDownloadStore = create<DownloadStore>((set, get) => ({
       }
     }
 
-    return openFolder(resolvedPath);
+    return openFolder(resolvedPath, downloadDir);
   },
 }));

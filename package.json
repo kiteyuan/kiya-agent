@@ -1,7 +1,8 @@
 {
   "name": "kiya-agent",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,11 +12,12 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "prepare:tauri-resources": "node ./scripts/prepare-tauri-resources.mjs",
-    "package:windows": "node ./scripts/run-with-local-temp.mjs -- npm run tauri build -- --bundles nsis",
-    "package:windows-msi": "node ./scripts/run-with-local-temp.mjs -- npm run tauri build -- --bundles msi",
+    "clean:tauri": "node ./scripts/clean-tauri-target.mjs",
+    "package:windows": "node ./scripts/with-stable-build-env.mjs -- npm run tauri build -- --bundles nsis",
+    "package:windows-msi": "node ./scripts/with-stable-build-env.mjs -- npm run tauri build -- --bundles msi",
     "check": "tsc -b --noEmit",
     "test": "vitest run",
-    "tauri": "tauri"
+    "tauri": "node ./scripts/with-stable-build-env.mjs -- tauri"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "^0.80.3",
@@ -23,7 +25,6 @@
     "@tauri-apps/plugin-dialog": "^2.4.0",
     "@tauri-apps/plugin-store": "^2.4.0",
     "artplayer": "^5.2.6",
-    "axios": "^1.11.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.511.0",
     "react": "^18.3.1",
