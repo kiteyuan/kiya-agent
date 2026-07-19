@@ -33,6 +33,12 @@ pub struct PiLaunchConfig {
     pub model_name: String,
     pub model_api_key: String,
     pub model_base_url: String,
+    #[serde(default = "default_auto_approve_tools")]
+    pub auto_approve_tools: bool,
+}
+
+fn default_auto_approve_tools() -> bool {
+    true
 }
 
 #[derive(Clone, Deserialize, Serialize)]

@@ -19,7 +19,10 @@ interface PlaylistStore {
   markAllSeen: () => void;
   registerToolCalls: (toolCalls: ToolCallSummary[]) => void;
   openItem: (item: PlaylistItem) => void;
-  openSource: (source: string, options?: { title?: string; origin?: PlaylistItem["origin"] }) => PlaylistItem | null;
+  openSource: (
+    source: string,
+    options?: { title?: string; origin?: PlaylistItem["origin"] },
+  ) => PlaylistItem | null;
   closeActiveItem: () => void;
 }
 
@@ -51,7 +54,9 @@ function parseToolCallDetail(detail: string) {
 
 function deriveTitle(source: string) {
   const fallbackTitle =
-    useAppStore.getState().config.language === "en" ? "Untitled video" : "未命名视频";
+    useAppStore.getState().config.language === "en"
+      ? "Untitled video"
+      : "未命名视频";
   try {
     const parsed = new URL(source);
     const filename = parsed.pathname.split("/").pop();
@@ -71,7 +76,7 @@ function isRemoteUrl(value: string) {
 function createPlaylistItem(
   source: string,
   options?: { title?: string; origin?: PlaylistItem["origin"] },
-) {
+): PlaylistItem {
   return {
     id: crypto.randomUUID(),
     title: options?.title?.trim() || deriveTitle(source),
@@ -79,17 +84,25 @@ function createPlaylistItem(
     kind: isRemoteUrl(source) ? "remote-url" : "local-file",
     origin: options?.origin ?? "manual",
     addedAt: nowLabel(),
-  } satisfies PlaylistItem;
+  };
 }
 
-function resolveItemTitle(currentTitle: string, source: string, nextTitle?: string) {
+function resolveItemTitle(
+  currentTitle: string,
+  source: string,
+  nextTitle?: string,
+) {
   const trimmedNextTitle = nextTitle?.trim();
   if (!trimmedNextTitle) {
     return currentTitle;
   }
 
   const fallbackTitle = deriveTitle(source);
-  if (currentTitle === fallbackTitle || currentTitle === "未命名视频" || currentTitle === "Untitled video") {
+  if (
+    currentTitle === fallbackTitle ||
+    currentTitle === "未命名视频" ||
+    currentTitle === "Untitled video"
+  ) {
     return trimmedNextTitle;
   }
 
@@ -104,13 +117,13 @@ async function persistItems(items: PlaylistItem[]) {
   }
 }
 
-export const usePlaylistStore = create<PlaylistStore>((set) => ({
+export const usePlaylistStore = create<PlaylistStore>((set, get) => ({
   hydrated: false,
   items: [],
   activeItem: null,
   unreadCount: 0,
   hydrate: async () => {
-    const state = usePlaylistStore.getState();
+    const state = get();
     if (state.hydrated) {
       return;
     }
@@ -130,7 +143,7 @@ export const usePlaylistStore = create<PlaylistStore>((set) => ({
     await persistItems([]);
   },
   removeItem: async (id) => {
-    const state = usePlaylistStore.getState();
+    const state = get();
     const nextItems = state.items.filter((item) => item.id !== id);
     if (nextItems.length === state.items.length) {
       return;
@@ -143,7 +156,7 @@ export const usePlaylistStore = create<PlaylistStore>((set) => ({
     await persistItems(nextItems);
   },
   markAllSeen: () => {
-    const state = usePlaylistStore.getState();
+    const state = get();
     if (state.unreadCount === 0) {
       return;
     }
@@ -175,22 +188,32 @@ export const usePlaylistStore = create<PlaylistStore>((set) => ({
         return {
           source: sourceValue,
           title: typeof payload.title === "string" ? payload.title : undefined,
-          origin: "tool-call",
-        } as const;
+          origin: "tool-call" as const,
+        };
       })
-      .filter((item) => item !== null);
+      .filter(
+        (
+          item,
+        ): item is {
+          source: string;
+          title: string | undefined;
+          origin: "tool-call";
+        } => item !== null,
+      );
 
     if (candidates.length === 0) {
       return;
     }
 
-    const state = usePlaylistStore.getState();
+    const state = get();
     const merged = [...state.items];
     let activeItem = state.activeItem;
     let addedCount = 0;
 
     for (const candidate of candidates) {
-      const existingIndex = merged.findIndex((item) => item.source === candidate.source);
+      const existingIndex = merged.findIndex(
+        (item) => item.source === candidate.source,
+      );
       const existingItem = existingIndex === -1 ? null : merged[existingIndex];
       let resolvedItem =
         existingItem ?? createPlaylistItem(candidate.source, candidate);
@@ -235,10 +258,11 @@ export const usePlaylistStore = create<PlaylistStore>((set) => ({
       return null;
     }
 
-    let resolvedItem: PlaylistItem | null = null;
-    const state = usePlaylistStore.getState();
-    const existingItem = state.items.find((item) => item.source === normalizedSource);
-    resolvedItem =
+    const state = get();
+    const existingItem = state.items.find(
+      (item) => item.source === normalizedSource,
+    );
+    let resolvedItem: PlaylistItem =
       existingItem ?? createPlaylistItem(normalizedSource, options);
 
     if (existingItem) {

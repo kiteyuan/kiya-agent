@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { mergeBootstrapStatus } from "@/services/desktop";
+import {
+  mergeBootstrapStatus,
+  mergeRemoteMcpServers,
+} from "@/services/desktop";
 
 describe("mergeBootstrapStatus", () => {
   it("keeps defaults when no overrides are provided", () => {
@@ -21,5 +24,42 @@ describe("mergeBootstrapStatus", () => {
       localMcp: "ready",
       piAgentConfig: "generated",
     });
+  });
+});
+
+describe("mergeRemoteMcpServers", () => {
+  it("keeps embedded servers enabled and merges saved headers", () => {
+    const merged = mergeRemoteMcpServers([
+      {
+        id: "magnet",
+        name: "Magnet",
+        enabled: false,
+        transport: "streamable-http",
+        url: "https://magnet.kiteyuan.info/api/v1/mcp",
+        headers: { Authorization: "Bearer test" },
+        isEmbedded: true,
+      },
+    ]);
+
+    const magnet = merged.find((server) => server.id === "magnet");
+    expect(magnet?.enabled).toBe(true);
+    expect(magnet?.headers).toEqual({ Authorization: "Bearer test" });
+    expect(merged.some((server) => server.id === "magnetflow")).toBe(true);
+  });
+
+  it("preserves custom servers", () => {
+    const merged = mergeRemoteMcpServers([
+      {
+        id: "custom-1",
+        name: "Custom",
+        enabled: true,
+        transport: "sse",
+        url: "https://example.com/mcp",
+        headers: {},
+        isEmbedded: false,
+      },
+    ]);
+
+    expect(merged.some((server) => server.id === "custom-1")).toBe(true);
   });
 });

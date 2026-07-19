@@ -303,6 +303,27 @@ function stripRuntimeArtifacts(targetDir) {
       const lowerName = entry.name.toLowerCase();
       if (removableSuffixes.some((suffix) => lowerName.endsWith(suffix))) {
         fs.rmSync(fullPath, { force: true });
+        continue;
+      }
+
+      // Windows reserved device names (e.g. "nul") break later target cleanup.
+      const reservedBase = lowerName.split(".")[0];
+      if (
+        ["con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "lpt1", "lpt2", "lpt3"].includes(
+          reservedBase,
+        )
+      ) {
+        try {
+          fs.rmSync(fullPath, { force: true });
+        } catch {
+          if (process.platform === "win32") {
+            try {
+              fs.unlinkSync(`\\\\?\\${fullPath}`);
+            } catch {
+              // Best-effort cleanup; packaging can continue.
+            }
+          }
+        }
       }
     }
   }
